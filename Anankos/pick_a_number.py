@@ -1,0 +1,94 @@
+import datetime
+
+class PickANumber:
+    def __init__(self, client, enabled, channel_id, event_id, cooldown):
+        self.client = client
+        self.enabled = enabled
+        self.channel_id = channel_id
+        self.event_id = event_id
+        self.cooldown = cooldown
+
+    async def create_tables(self):
+        await self.client.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pick_a_number (
+                eventid VARCHAR,
+                userid BIGINT,
+                timestamp TIMESTAMP,
+                number INT,
+                UNIQUE(eventid, number)
+            );
+            """
+        )
+        await self.client.db.commit()
+
+    async def on_message(self, message):
+        if not self.enabled or message.channel.id != self.channel_id or message.author.id == self.client.user.id:
+            return
+        if message.content.startswith(self.client.cmd_prefix + "num"):
+            splitted = message.content.split()
+            if len(splitted) <= 1 or len(splitted) > 2:
+                await message.channel.send("Incorrect parameters! `{}mum <1-1000>`".format(self.client.cmd_prefix))
+                return
+            number = splitted[1]
+            if not self.is_int(number):
+                await message.channel.send("`{}` is not a number!".format(number))
+                return
+            number = int(number)
+            if number < 1 or number > 1000:
+                await message.channel.send("`{}` must be between 1 and 1000!".format(number))
+                return
+            if await self.number_exists(number):
+                await message.channel.send("`{}` has already been claimed. Choose another one!".format(number))
+                return
+            cooldown = await self.get_cooldown_seconds(message.author.id)
+            if cooldown > 0:
+                cooldown_tmp = cooldown
+                cool_hrs = 0
+                cool_mins = 0
+                cool_secs = 0
+                while cooldown_tmp >= 3600:
+                    cool_hrs = cool_hrs + 1
+                    cooldown_tmp = cooldown_tmp - 3600
+                while cooldown_tmp >= 60:
+                    cool_mins = cool_mins + 1
+                    cooldown_tmp = cooldown_tmp - 60
+                cool_secs = cooldown_tmp
+                cool_str = ""
+                if cool_hrs:
+                    cool_str = cool_str + " {}h".format(cool_hrs)
+                if cool_mins:
+                    cool_str = cool_str + " {}m".format(cool_mins)
+                if cool_secs:
+                    cool_str = cool_str + " {}s".format(cool_secs)
+                cool_str = cool_str.strip()
+                await message.channel.send("Sorry, you gotta wait **{}**!".format(cool_str))
+                return
+            cursor = await self.client.db.execute(
+                "INSERT INTO pick_a_number (eventid, userid, timestamp, number) VALUES (?, ?, ?, ?);",
+                (self.event_id, message.author.id, datetime.datetime.now(), number)
+            )
+            await self.client.db.commit()
+            await message.channel.send("**{}** has chosen number **{}**".format(message.author.mention, number))
+
+    async def number_exists(self, number):
+        cursor = await self.client.db.execute("SELECT number FROM pick_a_number WHERE eventid = ? AND number = ?;", (self.event_id, number))
+        row = await cursor.fetchall()
+        return len(row) > 0
+
+    async def get_cooldown_seconds(self, user_id):
+        cursor = await self.client.db.execute("SELECT timestamp FROM pick_a_number WHERE eventid = ? AND userid = ? ORDER BY datetime(timestamp) DESC LIMIT 1;", (self.event_id, user_id))
+        row = await cursor.fetchone()
+        if row is None:
+            return 0
+        timestamp = row[0]
+        elapsed_last = (datetime.datetime.now() - timestamp).total_seconds()
+        time_left = max(self.cooldown - elapsed_last, 0)
+        return round(time_left)
+
+    def is_int(self, num):
+        try:
+            int(num)
+            return True
+        except ValueError:
+            return False
