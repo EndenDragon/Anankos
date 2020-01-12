@@ -31,6 +31,8 @@ class PickANumber:
             await self.cmd_cooldown(message)
         elif message.content.startswith(self.client.cmd_prefix + "listnum"):
             await self.cmd_listnum(message)
+        elif message.content.startswith(self.client.cmd_prefix + "allnums"):
+            await self.cmd_allnums(message)
             
     async def cmd_num(self, message):
         splitted = message.content.split()
@@ -79,6 +81,14 @@ class PickANumber:
             result = "*(You have not chosen any numbers yet)*"
         await message.channel.send("**{}'s numbers**: {}".format(user.mention, result))
 
+    async def cmd_allnums(self, message):
+        numbers = await self.get_all_numbers()
+        if len(numbers):
+            result = ", ".join(map(str, numbers))
+        else:
+            result = "*(There are no numbers chosen yet)*"
+        await message.channel.send("**Here's all the claimed numbers**: {}".format(result))
+
     def format_cooldown(self, cooldown):
         if cooldown <= 0:
             return "0s"
@@ -120,6 +130,14 @@ class PickANumber:
 
     async def get_user_numbers(self, user_id):
         cursor = await self.client.db.execute("SELECT number FROM pick_a_number WHERE eventid = ? AND userid = ? ORDER BY number ASC;", (self.event_id, user_id))
+        numbers = []
+        rows = await cursor.fetchall()
+        for row in rows:
+            numbers.append(row[0])
+        return numbers
+    
+    async def get_all_numbers(self):
+        cursor = await self.client.db.execute("SELECT number FROM pick_a_number WHERE eventid = ? ORDER BY number ASC;", (self.event_id, ))
         numbers = []
         rows = await cursor.fetchall()
         for row in rows:
