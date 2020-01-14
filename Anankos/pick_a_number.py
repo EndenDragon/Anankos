@@ -1,4 +1,7 @@
 import datetime
+import io
+import csv
+import discord
 
 class PickANumber:
     def __init__(self, client, enabled, channel_id, event_id, cooldown):
@@ -33,6 +36,8 @@ class PickANumber:
             await self.cmd_listnum(message)
         elif message.content.startswith(self.client.cmd_prefix + "allnums"):
             await self.cmd_allnums(message)
+        elif message.content.startswith(self.client.cmd_prefix + "gennumcsv"):
+            await self.cmd_gennumcsv(message)
             
     async def cmd_num(self, message):
         splitted = message.content.split()
@@ -89,6 +94,21 @@ class PickANumber:
             result = "*(There are no numbers chosen yet)*"
         await message.channel.send("**Here's all the claimed numbers**: {}".format(result))
 
+    async def cmd_gennumcsv(self, message):
+        result = await self.get_all_numbers_users()
+        f = io.StringIO(newline="")
+        csvfile = csv.writer(f)
+        csvfile.writerow(["Num", "Name", "User ID"])
+        for number, userid in result:
+            member = message.guild.get_member(userid)
+            name = ""
+            if member:
+                name = member.name + "#" + member.discriminator
+            csvfile.writerow([number, name, userid])
+        f.seek(0)
+        discordfile = discord.File(f, filename="pick_a_number.csv")
+        await message.channel.send("Here is your requested CSV", file=discordfile)
+
     def format_cooldown(self, cooldown):
         if cooldown <= 0:
             return "0s"
@@ -137,12 +157,19 @@ class PickANumber:
         return numbers
     
     async def get_all_numbers(self):
-        cursor = await self.client.db.execute("SELECT number FROM pick_a_number WHERE eventid = ? ORDER BY number ASC;", (self.event_id, ))
         numbers = []
+        numusrs = await self.get_all_numbers_users()
+        for num, user in numusrs:
+            numbers.append(num)
+        return numbers
+
+    async def get_all_numbers_users(self):
+        cursor = await self.client.db.execute("SELECT number, userid FROM pick_a_number WHERE eventid = ? ORDER BY number ASC;", (self.event_id, ))
+        result = []
         rows = await cursor.fetchall()
         for row in rows:
-            numbers.append(row[0])
-        return numbers
+            result.append((row[0], row[1]))
+        return result
 
     def is_int(self, num):
         try:
