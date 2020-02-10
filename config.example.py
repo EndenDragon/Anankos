@@ -3,6 +3,9 @@ CONFIG = {
     "cmd_prefix": "!",
     "playing_status": "with Dragon Veins",
 
+    # Bad Words
+    "bad_words": ["fortnite"],
+
     # Role Reaction (RR)
     "RR_messageid": 605102159922593825,
     "RR_emojiroles": {

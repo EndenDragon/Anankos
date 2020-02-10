@@ -1,5 +1,6 @@
 from Anankos.pick_a_number import PickANumber
 from Anankos.role_reaction import RoleReaction
+from Anankos.bad_words import BadWords
 
 import discord
 import aiosqlite
@@ -13,6 +14,7 @@ class Anankos(discord.Client):
         self.config = config
         self.db = None
         self.cmd_prefix = config.get("cmd_prefix", "!")
+        self.bad_words = BadWords(self, config.get("bad_words", []))
         self.pick_a_number = PickANumber(self, config.get("PaN_enabled", False), config.get("PaN_channel", 0), config.get("PaN_eventid", "default"), config.get("PaN_cooldown", 60))
         self.role_reaction = RoleReaction(self, config.get("RR_messageid", "605102159922593825"), config.get("RR_emojiroles", {}))
 
@@ -30,6 +32,7 @@ class Anankos(discord.Client):
 
     async def on_message(self, message):
         await self.pick_a_number.on_message(message)
+        await self.bad_words.on_message(message)
 
     async def on_raw_reaction_add(self, payload):
         await self.role_reaction.on_raw_reaction_add(payload)
