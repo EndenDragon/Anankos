@@ -1,9 +1,11 @@
 import discord
+import re
 
 class BadWords:
     def __init__(self, client, bad_words):
         self.client = client
         self.bad_words = bad_words
+        self.pattern = re.compile('[\W_]+')
 
     async def on_message(self, message):
         if message.author.id == self.client.user.id or not isinstance(message.author, discord.Member):
@@ -11,8 +13,9 @@ class BadWords:
         if message.author.permissions_in(message.channel).manage_messages or not message.guild.me.permissions_in(message.channel).manage_messages:
             return
         delete = False
+        content = self.pattern.sub('', message.content.lower())
         for bad in self.bad_words:
-            if bad.lower() in message.content.lower():
+            if bad.lower() in content:
                 delete = True
                 break
         if delete:
