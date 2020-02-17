@@ -42,7 +42,7 @@ class PickANumber:
     async def cmd_num(self, message):
         splitted = message.content.split()
         if len(splitted) <= 1 or len(splitted) > 2:
-            await message.channel.send("Incorrect parameters! `{}mum <1-1000>`".format(self.client.cmd_prefix))
+            await message.channel.send("Incorrect parameters! `{}num <1-1000>`".format(self.client.cmd_prefix))
             return
         number = splitted[1]
         if not self.is_int(number):
