@@ -84,7 +84,7 @@ class PickANumber:
             result = ", ".join(map(str, numbers))
         else:
             result = "*(You have not chosen any numbers yet)*"
-        await message.channel.send("**{}'s numbers**: {}".format(user.mention, result))
+        await message.channel.send("**{}'s numbers ({}):** {}".format(user.mention, len(numbers), result))
 
     async def cmd_allnums(self, message):
         numbers = await self.get_all_numbers()
@@ -92,7 +92,7 @@ class PickANumber:
             result = ", ".join(map(str, numbers))
         else:
             result = "*(There are no numbers chosen yet)*"
-        await message.channel.send("**Here's all the claimed numbers**: {}".format(result))
+        await message.channel.send("**Here's all the claimed numbers ({}):** {}".format(len(numbers), result))
 
     async def cmd_gennumcsv(self, message):
         result = await self.get_all_numbers_users()
