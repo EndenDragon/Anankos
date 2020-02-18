@@ -26,18 +26,20 @@ class PickANumber:
         await self.client.db.commit()
 
     async def on_message(self, message):
-        if not self.enabled or message.channel.id != self.channel_id or message.author.id == self.client.user.id:
+        if message.channel.id != self.channel_id or message.author.id == self.client.user.id:
             return
-        if message.content.startswith(self.client.cmd_prefix + "num"):
-            await self.cmd_num(message)
-        elif message.content.startswith(self.client.cmd_prefix + "cooldown"):
-            await self.cmd_cooldown(message)
-        elif message.content.startswith(self.client.cmd_prefix + "listnum"):
+        if message.content.startswith(self.client.cmd_prefix + "listnum"):
             await self.cmd_listnum(message)
         elif message.content.startswith(self.client.cmd_prefix + "allnums"):
             await self.cmd_allnums(message)
         elif message.content.startswith(self.client.cmd_prefix + "gennumcsv"):
             await self.cmd_gennumcsv(message)
+        if not self.enabled:
+            return
+        if message.content.startswith(self.client.cmd_prefix + "num"):
+            await self.cmd_num(message)
+        elif message.content.startswith(self.client.cmd_prefix + "cooldown"):
+            await self.cmd_cooldown(message)
             
     async def cmd_num(self, message):
         splitted = message.content.split()
