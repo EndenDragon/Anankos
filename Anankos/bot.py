@@ -34,6 +34,9 @@ class Anankos(discord.Client):
         await self.pick_a_number.on_message(message)
         await self.bad_words.on_message(message)
 
+    async def on_message_edit(self, before, after):
+        await self.bad_words.on_message_edit(before, after)
+
     async def on_raw_reaction_add(self, payload):
         await self.role_reaction.on_raw_reaction_add(payload)
 
