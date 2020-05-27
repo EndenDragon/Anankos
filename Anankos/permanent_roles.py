@@ -12,5 +12,5 @@ class PermanentRoles:
                 if role:
                     roles.append(role)
             if roles:
-                await member.add_roles(roles, "Automatically added roles per bot config")
+                await member.add_roles(*roles, reason="Automatically added role per bot config")
     
