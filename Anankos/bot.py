@@ -1,6 +1,7 @@
 from Anankos.pick_a_number import PickANumber
 from Anankos.role_reaction import RoleReaction
 from Anankos.bad_words import BadWords
+from Anankos.permanent_roles import PermanentRoles
 
 import discord
 import aiosqlite
@@ -16,7 +17,8 @@ class Anankos(discord.Client):
         self.cmd_prefix = config.get("cmd_prefix", "!")
         self.bad_words = BadWords(self, config.get("bad_words", []))
         self.pick_a_number = PickANumber(self, config.get("PaN_enabled", False), config.get("PaN_channel", 0), config.get("PaN_eventid", "default"), config.get("PaN_cooldown", 60))
-        self.role_reaction = RoleReaction(self, config.get("RR_messageid", "605102159922593825"), config.get("RR_emojiroles", {}))
+        self.role_reaction = RoleReaction(self, config.get("RR_messageid", "605102159922593825"), config.get("RR_emojiroles", {}), config.get("permanent_roles", {}))
+        self.permanent_roles = PermanentRoles(self, config.get("permanent_roles", {}))
 
     async def on_connect(self):
         if self.db is None:
@@ -42,3 +44,6 @@ class Anankos(discord.Client):
 
     async def on_raw_reaction_remove(self, payload):
         await self.role_reaction.on_raw_reaction_remove(payload)
+
+    async def on_member_join(self, member):
+        await self.permanent_roles.on_member_join(member)

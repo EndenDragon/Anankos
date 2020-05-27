@@ -20,6 +20,10 @@ CONFIG = {
         "🔞": 635378577831100466,
     },
 
+    "permanent_roles": {
+        602633229614448640: [635378577831100466],
+    },
+
     # Pick a Number (PaN)
     "PaN_enabled": True,
     "PaN_channel": 140252024666062848,
