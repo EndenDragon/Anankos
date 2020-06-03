@@ -24,7 +24,7 @@ class BadWords:
             return
         delete = False
         for bad in self.re_bad_words:
-            if bad.match(message.content):
+            if bad.search(message.content):
                 delete = True
                 break
         if delete:
