@@ -138,7 +138,9 @@ class Trivia:
 
     def get_question_embed(self):
         question = self.questions[self.current_problemid]
-        description = "This is a {} question. Please answer according to the provided hint format by filling in the unknowns hashes (#).".format(question.question_type)
+        description = "This is a {} question.".format(question.question_type)
+        if question.hint and "#" in question.hint:
+            description = description + " Please answer according to the provided hint format by filling in the unknowns hashes (#)."
         if question.question_type == "TrueFalse":
             description = "This is a True/False question. Please answer with only true or false."
         embed = discord.Embed(
@@ -201,11 +203,11 @@ class Trivia:
 
     def calculate_points(self, mins_elapsed, difficulty):
         base_point = [70, 80, 90, 100, 110]
-        return round(self._easeInOutCirc(
+        return round(self._easeOutQuad(
             mins_elapsed,
             base_point[difficulty - 1],
             -60,
-            12 # 12 minutes for minimum points
+            17 # 17 minutes for minimum points
         ))
 
     # t-currentTime, b-startvalue, c-changeInValue, d-duration
@@ -220,6 +222,12 @@ class Trivia:
         t = t - 2
         return c / 2 * (math.sqrt(1 - t*t) + 1) + b
 
+    def _easeOutQuad(self, t, b, c, d):
+        if t > d: # past duration, use minimum
+            return b + c
+        t = t / d
+        return -c * t * (t - 2) + b
+
     async def get_top_scores(self):
         cursor = await self.client.db.execute(
             """
@@ -227,7 +235,7 @@ class Trivia:
             FROM trivia
             WHERE eventid = ?
             GROUP BY userid
-            ORDER BY sum(points)
+            ORDER BY sum(points) DESC
             LIMIT 10;
             """,
             (self.event_id, )
