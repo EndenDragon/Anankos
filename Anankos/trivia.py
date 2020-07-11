@@ -207,12 +207,15 @@ class Trivia:
 
     def calculate_points(self, mins_elapsed, difficulty):
         base_point = [70, 80, 90, 100, 110]
-        return round(self._easeOutQuad(
+        points = round(self._easeOutQuad(
             mins_elapsed,
             base_point[difficulty - 1],
             -60,
             17 # 17 minutes for minimum points
         ))
+        if points == base_point[difficulty - 1] - 60:
+            points = points + random.choice([0, 0, 1, 2, 3])
+        return points
 
     # t-currentTime, b-startvalue, c-changeInValue, d-duration
     # t and d can be frames or secs/millisecs
