@@ -91,6 +91,8 @@ class Trivia:
         if await self.question_is_answered():
             # await message.channel.send("This question has already been answered! Please wait for the next question.")
             return
+        if self.current_problemid >= len(self.questions):
+            return
         question = self.questions[self.current_problemid]
         if question.answer.lower() != answer.lower():
             # await message.channel.send("wrong.")
