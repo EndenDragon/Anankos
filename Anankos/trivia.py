@@ -122,6 +122,9 @@ class Trivia:
         while not self.client.is_closed():
             if await self.question_is_answered() and datetime.datetime.now() > self.cooldown_expiration:
                 await self.post_next_question()
+            if self.current_problemid >= len(self.questions):
+                await self.client.get_channel(self.channel_id).send("Hey hey <@138881969185357825>, I'm all out of questions! Event over?!")
+                return
             await asyncio.sleep(60)
 
     async def post_next_question(self):
@@ -131,7 +134,6 @@ class Trivia:
             datetime.datetime.now() + datetime.timedelta(minutes=self.get_random_minutes())
         )
         if self.current_problemid >= len(self.questions):
-            await self.client.get_channel(self.channel_id).send("Hey hey <@138881969185357825>, I'm all out of questions! Event over?!")
             return
         await self.ask_current_question()
 
