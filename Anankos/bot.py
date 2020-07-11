@@ -2,6 +2,7 @@ from Anankos.pick_a_number import PickANumber
 from Anankos.role_reaction import RoleReaction
 from Anankos.bad_words import BadWords
 from Anankos.permanent_roles import PermanentRoles
+from Anankos.trivia import Trivia
 
 import discord
 import aiosqlite
@@ -19,11 +20,13 @@ class Anankos(discord.Client):
         self.pick_a_number = PickANumber(self, config.get("PaN_enabled", False), config.get("PaN_channel", 0), config.get("PaN_eventid", "default"), config.get("PaN_cooldown", 60))
         self.role_reaction = RoleReaction(self, config.get("RR_messageid", "605102159922593825"), config.get("RR_emojiroles", {}), config.get("permanent_roles", {}))
         self.permanent_roles = PermanentRoles(self, config.get("permanent_roles", {}))
+        self.trivia = Trivia(self, config.get("Triv_enabled", False), config.get("Triv_channel", 0), config.get("Triv_eventid", "default"), config.get("Triv_role_pingerid", 0), config.get("Triv_cooldown_min", 30), config.get("Triv_cooldown_max", 45))
 
     async def on_connect(self):
         if self.db is None:
             self.db = await aiosqlite.connect("db.sqlite3", detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
             await self.pick_a_number.create_tables()
+            await self.trivia.create_tables()
 
     async def on_ready(self):
         print("[Anankos by EndenDragon#1337]")
@@ -35,6 +38,7 @@ class Anankos(discord.Client):
     async def on_message(self, message):
         await self.pick_a_number.on_message(message)
         await self.bad_words.on_message(message)
+        await self.trivia.on_message(message)
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)

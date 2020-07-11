@@ -29,4 +29,12 @@ CONFIG = {
     "PaN_channel": 140252024666062848,
     "PaN_eventid": "jan2020",
     "PaN_cooldown": 21600,
+
+    # Triva (Triv)
+    "Triv_enabled": True,
+    "Triv_channel": 140252024666062848,
+    "Triv_eventid": "july2020",
+    "Triv_cooldown_min": 30,
+    "Triv_cooldown_max": 50,
+    "Triv_role_pingerid": 731457556542914580,
 }
