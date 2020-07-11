@@ -82,6 +82,8 @@ class Trivia:
             await self.cmd_top(message)
         if message.content.startswith(self.client.cmd_prefix + "due"):
             await self.cmd_due(message)
+        if message.content.startswith(self.client.cmd_prefix + "score"):
+            await self.cmd_score(message)
         await self.accept_message_answer(message)
 
     async def accept_message_answer(self, message):
@@ -248,6 +250,21 @@ class Trivia:
             top.append((row[0], row[1]))
         return top
 
+    async def get_player_score(self, user_id):
+        cursor = await self.client.db.execute(
+            """
+            SELECT sum(points)
+            FROM trivia
+            WHERE eventid = ? AND userid = ?
+            GROUP BY userid
+            """,
+            (self.event_id, user_id)
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return 0
+        return row[0]
+
     async def cmd_top(self, message):
         scores = await self.get_top_scores()
         embed = discord.Embed()
@@ -259,6 +276,10 @@ class Trivia:
             if user:
                 embed.add_field(name=points, value=user.mention, inline=True)
         await message.channel.send(embed=embed)
+
+    async def cmd_score(self, message):
+        score = await self.get_player_score(message.author.id)
+        await message.channel.send("{}'s current score is **{}**.".format(message.author.mention, score))
 
     async def cmd_due(self, message):
         if message.author.id == self.client.user.id:
