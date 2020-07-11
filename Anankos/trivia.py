@@ -227,7 +227,8 @@ class Trivia:
             FROM trivia
             WHERE eventid = ?
             GROUP BY userid
-            ORDER BY sum(points);
+            ORDER BY sum(points)
+            LIMIT 10;
             """,
             (self.event_id, )
         )
