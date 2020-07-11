@@ -80,6 +80,8 @@ class Trivia:
             return
         if message.content.startswith(self.client.cmd_prefix + "top"):
             await self.cmd_top(message)
+        if message.content.startswith(self.client.cmd_prefix + "due"):
+            await self.cmd_due(message)
         await self.accept_message_answer(message)
 
     async def accept_message_answer(self, message):
@@ -257,6 +259,41 @@ class Trivia:
             if user:
                 embed.add_field(name=points, value=user.mention, inline=True)
         await message.channel.send(embed=embed)
+
+    async def cmd_due(self, message):
+        if message.author.id == self.client.user.id:
+            return
+        if not message.author.permissions_in(message.channel).manage_messages:
+            return
+        seconds_left = (self.cooldown_expiration - datetime.datetime.now()).total_seconds()
+        seconds_left = round(max(seconds_left, 0))
+        cooldown = self.format_cooldown(seconds_left)
+        await message.author.send("Next question will be posted in about {}".format(cooldown))
+        await message.delete()
+        
+    def format_cooldown(self, cooldown):
+        if cooldown <= 0:
+            return "0s"
+        cooldown_tmp = cooldown
+        cool_hrs = 0
+        cool_mins = 0
+        cool_secs = 0
+        while cooldown_tmp >= 3600:
+            cool_hrs = cool_hrs + 1
+            cooldown_tmp = cooldown_tmp - 3600
+        while cooldown_tmp >= 60:
+            cool_mins = cool_mins + 1
+            cooldown_tmp = cooldown_tmp - 60
+        cool_secs = cooldown_tmp
+        cool_str = ""
+        if cool_hrs:
+            cool_str = cool_str + " {}h".format(cool_hrs)
+        if cool_mins:
+            cool_str = cool_str + " {}m".format(cool_mins)
+        if cool_secs:
+            cool_str = cool_str + " {}s".format(cool_secs)
+        cool_str = cool_str.strip()
+        return cool_str
 
     class Question:
         def __init__(self, question, answer, hint, question_type, difficulty, bonus):
