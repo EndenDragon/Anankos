@@ -281,12 +281,12 @@ class Trivia:
             points = score[1]
             user = self.client.get_user(user_id)
             if user:
-                embed.add_field(name=points, value=user.mention, inline=True)
+                embed.add_field(name="{:,}".format(points), value=user.mention, inline=True)
         await message.channel.send(embed=embed)
 
     async def cmd_score(self, message):
         score = await self.get_player_score(message.author.id)
-        await message.channel.send("{}'s current score is **{}**.".format(message.author.mention, score))
+        await message.channel.send("{}'s current score is **{:,}**.".format(message.author.mention, score))
 
     async def cmd_due(self, message):
         if message.author.id == self.client.user.id:
