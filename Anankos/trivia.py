@@ -249,7 +249,7 @@ class Trivia:
             WHERE eventid = ?
             GROUP BY userid
             ORDER BY sum(points) DESC
-            LIMIT 10;
+            LIMIT 12;
             """,
             (self.event_id, )
         )
@@ -278,12 +278,14 @@ class Trivia:
         scores = await self.get_top_scores()
         embed = discord.Embed()
         embed.set_author(name="Top Trivia Players", icon_url="https://i.imgur.com/r3kCfzq.png")
+        count = 1
         for score in scores:
             user_id = score[0]
             points = score[1]
             user = self.client.get_user(user_id)
             if user:
-                embed.add_field(name="{:,}".format(points), value=user.mention, inline=True)
+                embed.add_field(name="{}. {:,}".format(count, points), value=user.mention, inline=True)
+                count = count + 1
         await message.channel.send(embed=embed)
 
     async def cmd_score(self, message):
