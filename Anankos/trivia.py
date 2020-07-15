@@ -141,6 +141,8 @@ class Trivia:
         await self.delete_all_bot_pins()
         embed = self.get_question_embed()
         role = self.client.get_channel(self.channel_id).guild.get_role(self.role_id)
+        await self.client.get_channel(self.channel_id).send("Look out {}! Next question is dropping in 30 seconds!".format(role.mention))
+        await asyncio.sleep(30)
         message = await self.client.get_channel(self.channel_id).send(role.mention, embed=embed)
         await message.pin()
 
