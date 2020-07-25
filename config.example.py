@@ -20,6 +20,13 @@ CONFIG = {
         "🔞": 635378577831100466,
     },
 
+    # Image Embed
+    "image_channelids": [605090070453551134, 703718904576475198, 608659392958824461],
+    "twitter_consumer_key": "key",
+    "twitter_consumer_secret": "key",
+    "twitter_access_token_key": "key",
+    "twitter_access_token_secret": "key",
+
     "permanent_roles": {
         602633229614448640: [635378577831100466],
     },
