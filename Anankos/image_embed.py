@@ -91,5 +91,5 @@ class ImageEmbed:
                 url = url
             )
             embed.set_image(url=result["url"])
-            embed.set_author(name=result["author_name"], url=result["author_url"], icon_url="https://i.imgur.com/PS1B721.png?1")
+            embed.set_author(name=result["author_name"], url=result["author_url"], icon_url="https://st.deviantart.net/eclipse/icons/android-192.png")
             return embed
