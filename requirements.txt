@@ -2,3 +2,4 @@ discord.py
 aiosqlite
 urlextract
 python-twitter
+Unidecode

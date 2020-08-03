@@ -1,5 +1,6 @@
 import discord
 import re
+from unidecode import unidecode
 
 class BadWords:
     def __init__(self, client, bad_words):
@@ -22,9 +23,10 @@ class BadWords:
             return
         if message.author.permissions_in(message.channel).manage_messages or not message.guild.me.permissions_in(message.channel).manage_messages:
             return
+        unidecoded = unidecode(message.content)
         delete = False
         for bad in self.re_bad_words:
-            if bad.search(message.content):
+            if bad.search(message.content) or bad.search(unidecoded):
                 delete = True
                 break
         if delete:
