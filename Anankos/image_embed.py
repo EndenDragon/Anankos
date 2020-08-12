@@ -26,7 +26,7 @@ class ImageEmbed:
     async def on_message(self, message):
         if message.channel.id not in self.channel_ids or message.author == self.client.user:
             return
-        await asyncio.sleep(4)
+        await asyncio.sleep(8)
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
         embeds = []
