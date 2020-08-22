@@ -24,11 +24,21 @@ class BadWords:
         if message.author.permissions_in(message.channel).manage_messages or not message.guild.me.permissions_in(message.channel).manage_messages:
             return
         unidecoded = unidecode(message.content)
+        regional_indi_normalized = self.convert_regional_indicators(message.content)
         delete = False
         for bad in self.re_bad_words:
-            if bad.search(message.content) or bad.search(unidecoded):
+            if bad.search(message.content) or bad.search(unidecoded) or bad.search(regional_indi_normalized):
                 delete = True
                 break
         if delete:
             await message.channel.send("Hey {}! Thou shalt not speak the *forbidden word*!".format(message.author.mention))
             await message.delete()
+
+    def convert_regional_indicators(self, message):
+        start_ri = 127462
+        start_latin = 65
+        for i in range(27):
+            ri = chr(start_ri + i)
+            latin = chr(start_latin + i)
+            message = message.replace(ri, latin)
+        return message
