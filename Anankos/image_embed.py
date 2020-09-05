@@ -1,6 +1,7 @@
 import discord
 import re
 from urlextract import URLExtract
+from collections import deque
 import asyncio
 import aiohttp
 import twitter
@@ -11,6 +12,7 @@ class ImageEmbed:
         self.channel_ids = channel_ids
         self.extractor = URLExtract()
         self.httpsession = aiohttp.ClientSession()
+        self.message_cache = deque(maxlen=100)
 
         self.twitter_pattern = re.compile("twitter.com/\w+/status/(\d+)")
         self.deviantart_pattern = re.compile("deviantart\.com.*.\d")
@@ -27,6 +29,10 @@ class ImageEmbed:
         if message.channel.id not in self.channel_ids or message.author == self.client.user:
             return
         await asyncio.sleep(8)
+        try:
+            await message.channel.fetch_message(message.id)
+        except discord.errors.NotFound:
+            return
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
         embeds = []
@@ -34,8 +40,28 @@ class ImageEmbed:
             embeds.append(await self.get_twitter_embed(url, message))
             embeds.append(await self.get_deviantart_embed(url, message))
         embeds = [embed for embed in embeds if embed]
+        to_cache = {"msg": message, "embed_msgs": []}
         for embed in embeds[:4]:
-            await message.channel.send(embed=embed)
+            em_msg = await message.channel.send(embed=embed)
+            to_cache["embed_msgs"].append(em_msg)
+        if len(to_cache["embed_msgs"]):
+            self.message_cache.append(to_cache)
+
+    async def on_message_delete(self, message):
+        if message.channel.id not in self.channel_ids or message.author == self.client.user:
+            return
+        chosen = None
+        for cache in self.message_cache:
+            if message == cache["msg"]:
+                chosen = cache
+                break
+        if chosen:
+            for to_delete in chosen["embed_msgs"]:
+                try:
+                    await to_delete.delete()
+                except discord.errors.NotFound:
+                    continue
+            self.message_cache.remove(chosen)
 
     def filter_link(self, url, message_content):
         return message_content.count("<" + url + ">") < message_content.count(url)

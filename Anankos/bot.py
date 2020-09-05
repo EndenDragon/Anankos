@@ -54,3 +54,6 @@ class Anankos(discord.Client):
 
     async def on_member_join(self, member):
         await self.permanent_roles.on_member_join(member)
+
+    async def on_message_delete(self, message):
+        await self.image_embed.on_message_delete(message)
