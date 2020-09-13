@@ -27,6 +27,10 @@ CONFIG = {
     "twitter_access_token_key": "key",
     "twitter_access_token_secret": "key",
 
+    # Reddit Publish
+    "redditpub_source_chan_id": 754577585370955886,
+    "redditpub_dest_chan_id": 605096043868192778,
+
     "permanent_roles": {
         602633229614448640: [635378577831100466],
     },
