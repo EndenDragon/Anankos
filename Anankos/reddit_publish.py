@@ -32,12 +32,15 @@ class RedditPublish:
         message = await channel.fetch_message(payload.message_id)
         if len(message.embeds) == 0:
             return
+        for reaction in message.reactions:
+            if reaction.me and str(reaction.emoji) == "✅":
+                return
         if payload.emoji.is_unicode_emoji() and payload.emoji.name == "📤":
             url = message.embeds[0].author.url
             if "reddit.com" not in url:
                 return
             await self.publish_reddit_link(url)
-            await message.clear_reactions()
+            await message.add_reaction("✅")
 
     async def publish_reddit_link(self, url):
         if url.endswith("/"):
