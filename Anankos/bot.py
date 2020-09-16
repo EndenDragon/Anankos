@@ -5,6 +5,7 @@ from Anankos.permanent_roles import PermanentRoles
 from Anankos.trivia import Trivia
 from Anankos.image_embed import ImageEmbed
 from Anankos.reddit_publish import RedditPublish
+from Anankos.looking_for_smash import LookingForSmash
 
 import discord
 import aiosqlite
@@ -25,6 +26,7 @@ class Anankos(discord.Client):
         self.trivia = Trivia(self, config.get("Triv_enabled", False), config.get("Triv_channel", 0), config.get("Triv_eventid", "default"), config.get("Triv_role_pingerid", 0), config.get("Triv_cooldown_min", 30), config.get("Triv_cooldown_max", 45))
         self.image_embed = ImageEmbed(self, config.get("image_channelids", []), config.get("twitter_consumer_key"), config.get("twitter_consumer_secret"), config.get("twitter_access_token_key"), config.get("twitter_access_token_secret"))
         self.reddit_publish = RedditPublish(self, config.get("redditpub_source_chan_id"), config.get("redditpub_dest_chan_id"))
+        self.looking_for_smash = LookingForSmash(self, config.get("lfs_channelid"), config.get("lfs_roleid"))
 
     async def on_connect(self):
         if self.db is None:
@@ -43,8 +45,9 @@ class Anankos(discord.Client):
         await self.pick_a_number.on_message(message)
         await self.bad_words.on_message(message)
         await self.trivia.on_message(message)
-        await self.image_embed.on_message(message)
         await self.reddit_publish.on_message(message)
+        await self.looking_for_smash.on_message(message)
+        await self.image_embed.on_message(message)
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)

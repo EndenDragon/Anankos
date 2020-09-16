@@ -31,6 +31,10 @@ CONFIG = {
     "redditpub_source_chan_id": 754577585370955886,
     "redditpub_dest_chan_id": 605096043868192778,
 
+    # Looking For Smash (LFS)
+    "lfs_channelid": 605798581793718276,
+    "lfs_roleid": 755687552434044929,
+
     "permanent_roles": {
         602633229614448640: [635378577831100466],
     },
