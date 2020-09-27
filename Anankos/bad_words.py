@@ -31,7 +31,10 @@ class BadWords:
                 delete = True
                 break
         if delete:
-            await message.channel.send("Hey {}! Thou shalt not speak the *forbidden word*!".format(message.author.mention))
+            try:
+                await message.author.send("Hey {}! Thou shalt not speak the *forbidden word*!\nYou said: {}".format(message.author.mention, message.content))
+            except:
+                pass
             await message.delete()
 
     def convert_regional_indicators(self, message):
