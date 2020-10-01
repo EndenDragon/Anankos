@@ -19,7 +19,7 @@ class LookingForSmash:
             await message.channel.send("{} Command is on cooldown: You must wait **{}** before you can send an another looking for smash mention!".format(message.author.mention, cool_str))
             return
         role = message.guild.get_role(self.role_id)
-        await message.channel.send("{}\n__**{} is looking for buddies to smash!**__".format(role.mention, message.author.mention))
+        await message.channel.send("{}\n__**{} would like to settle it in smash!**__".format(role.mention, message.author.mention))
         self.mention_last = datetime.datetime.now()
 
     def get_cooldown_seconds(self):
