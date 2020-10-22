@@ -16,7 +16,7 @@ class Anankos(discord.Client):
     def __init__(self, config):
         super().__init__(
             activity=discord.Game(name=config.get("playing_status", "with Dragon Veins")),
-            intents=discord.Intents(messages=True, guilds=True)
+            intents=discord.Intents.all()
         )
         self.config = config
         self.db = None
