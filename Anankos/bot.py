@@ -55,6 +55,7 @@ class Anankos(discord.Client):
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)
+        await self.image_embed.on_message_edit(before, after)
 
     async def on_raw_reaction_add(self, payload):
         await self.role_reaction.on_raw_reaction_add(payload)

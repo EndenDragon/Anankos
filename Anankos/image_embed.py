@@ -28,11 +28,6 @@ class ImageEmbed:
     async def on_message(self, message):
         if message.channel.id not in self.channel_ids or message.author == self.client.user:
             return
-        await asyncio.sleep(8)
-        try:
-            await message.channel.fetch_message(message.id)
-        except discord.errors.NotFound:
-            return
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
         embeds = []
@@ -62,6 +57,25 @@ class ImageEmbed:
                 except discord.errors.NotFound:
                     continue
             self.message_cache.remove(chosen)
+
+    async def on_message_edit(self, before, after):
+        urls = []
+        for embed in after.embeds:
+            if embed.url:
+                urls.append(embed.url)
+        chosen = None
+        for cache in self.message_cache:
+            if after == cache["msg"]:
+                chosen = cache
+                break
+        if chosen:
+            for potential in list(chosen["embed_msgs"]):
+                if len(potential.embeds) and potential.embeds[0].url in urls:
+                    try:
+                        await potential.delete()
+                    except discord.errors.NotFound:
+                        continue
+                    chosen["embed_msgs"].remove(potential)
 
     def filter_link(self, url, message_content):
         return message_content.count("<" + url + ">") < message_content.count(url)
