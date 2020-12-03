@@ -62,7 +62,10 @@ class ImageEmbed:
         urls = []
         for embed in after.embeds:
             if embed.url:
-                urls.append(embed.url)
+                url = embed.url
+                url = url.replace("mobile.twitter.com", "twitter.com")
+                urls.append(url)
+        await asyncio.sleep(0.5)
         chosen = None
         for cache in self.message_cache:
             if after == cache["msg"]:
@@ -81,6 +84,7 @@ class ImageEmbed:
         return message_content.count("<" + url + ">") < message_content.count(url)
 
     async def get_twitter_embed(self, url, message):
+        url = url.replace("mobile.twitter.com", "twitter.com")
         twitter_id = self.twitter_pattern.search(url)
         if not twitter_id:
             return None
