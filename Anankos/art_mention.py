@@ -15,7 +15,7 @@ class ArtMention:
         roles_to_mention = set()
         for character, role_id in self.art_mention.items():
             character = character.lower()
-            if "@@{}".format(character) not in content_split:
+            if "!!{}".format(character) not in content_split:
                 continue
             if self.get_cooldown_seconds(character) > 0:
                 continue
