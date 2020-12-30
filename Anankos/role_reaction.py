@@ -1,8 +1,7 @@
 class RoleReaction:
-    def __init__(self, client, message_id, emoji_roles, permanent_roles):
+    def __init__(self, client, role_reaction, permanent_roles):
         self.client = client
-        self.message_id = message_id
-        self.emoji_roles = emoji_roles
+        self.role_reaction = role_reaction
         self.permanent_roles = permanent_roles
 
     async def on_raw_reaction_add(self, payload):
@@ -19,11 +18,12 @@ class RoleReaction:
 
     async def get_member_and_role(self, payload):
         message_id = payload.message_id
-        if message_id != self.message_id:
+        if message_id not in self.role_reaction:
             return (None, None)
         user_id = payload.user_id
         channel_id = payload.channel_id
         channel = self.client.get_channel(channel_id)
+        emoji_roles = self.role_reaction[message_id]
         if not channel:
             return (None, None)
         guild = channel.guild
@@ -36,9 +36,9 @@ class RoleReaction:
             lookup_str = emoji.id
         if emoji.is_unicode_emoji():
             lookup_str = emoji.name
-        if lookup_str not in self.emoji_roles:
+        if lookup_str not in emoji_roles:
             return (None, None)
-        role_id = self.emoji_roles[lookup_str]
+        role_id = emoji_roles[lookup_str]
         role = guild.get_role(role_id)
         if not role:
             return (None, None)

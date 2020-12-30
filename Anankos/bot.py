@@ -7,6 +7,7 @@ from Anankos.image_embed import ImageEmbed
 from Anankos.reddit_publish import RedditPublish
 from Anankos.looking_for_smash import LookingForSmash
 from Anankos.mass_corrin_ping import MassCorrinPing
+from Anankos.art_mention import ArtMention
 
 import discord
 import aiosqlite
@@ -23,13 +24,14 @@ class Anankos(discord.Client):
         self.cmd_prefix = config.get("cmd_prefix", "!")
         self.bad_words = BadWords(self, config.get("bad_words", []))
         self.pick_a_number = PickANumber(self, config.get("PaN_enabled", False), config.get("PaN_channel", 0), config.get("PaN_eventid", "default"), config.get("PaN_cooldown", 60))
-        self.role_reaction = RoleReaction(self, config.get("RR_messageid", "605102159922593825"), config.get("RR_emojiroles", {}), config.get("permanent_roles", {}))
+        self.role_reaction = RoleReaction(self, config.get("role_reaction", {}), config.get("permanent_roles", {}))
         self.permanent_roles = PermanentRoles(self, config.get("permanent_roles", {}))
         self.trivia = Trivia(self, config.get("Triv_enabled", False), config.get("Triv_channel", 0), config.get("Triv_eventid", "default"), config.get("Triv_role_pingerid", 0), config.get("Triv_cooldown_min", 30), config.get("Triv_cooldown_max", 45))
         self.image_embed = ImageEmbed(self, config.get("image_channelids", []), config.get("twitter_consumer_key"), config.get("twitter_consumer_secret"), config.get("twitter_access_token_key"), config.get("twitter_access_token_secret"))
         self.reddit_publish = RedditPublish(self, config.get("redditpub_source_chan_id"), config.get("redditpub_dest_chan_id"))
         self.looking_for_smash = LookingForSmash(self, config.get("lfs_channelid"), config.get("lfs_roleid"))
         self.mass_corrin_ping = MassCorrinPing(self)
+        self.art_mention = ArtMention(self, config.get("image_channelids", []), config.get("art_mention", {}))
 
     async def on_connect(self):
         if self.db is None:
@@ -51,6 +53,7 @@ class Anankos(discord.Client):
         await self.reddit_publish.on_message(message)
         await self.looking_for_smash.on_message(message)
         await self.mass_corrin_ping.on_message(message)
+        await self.art_mention.on_message(message)
         await self.image_embed.on_message(message)
 
     async def on_message_edit(self, before, after):
