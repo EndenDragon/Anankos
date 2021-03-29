@@ -27,7 +27,7 @@ class ArtMention:
     async def background_task(self):
         await self.client.wait_until_ready()
         while not self.client.is_closed():
-            await asyncio.sleep(432000) # 5 days
+            await asyncio.sleep(1209600) # 14 days
             for guild in self.client.guilds:
                 for role in list(guild.roles):
                     if role.name.endswith(" - Fanart Notification"):
@@ -64,8 +64,7 @@ class ArtMention:
             mentions = ""
             for role in roles_to_mention:
                 mentions = mentions + role.mention + " "
-            mention_msg = "{}: {}".format(message.author.mention, mentions)
-            await message.channel.send(mention_msg)
+            await message.reply(mentions)
 
     async def get_role(self, character, guild):
         if not guild:
