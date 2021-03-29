@@ -31,13 +31,14 @@ class Anankos(discord.Client):
         self.reddit_publish = RedditPublish(self, config.get("redditpub_source_chan_id"), config.get("redditpub_dest_chan_id"))
         self.looking_for_smash = LookingForSmash(self, config.get("lfs_channelid"), config.get("lfs_roleid"))
         self.mass_corrin_ping = MassCorrinPing(self)
-        self.art_mention = ArtMention(self, config.get("image_channelids", []), config.get("art_mention", {}))
+        self.art_mention = ArtMention(self, config.get("image_channelids", []), config.get("artmention_base_role_id", ""))
 
     async def on_connect(self):
         if self.db is None:
             self.db = await aiosqlite.connect("db.sqlite3", detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
             await self.pick_a_number.create_tables()
             await self.trivia.create_tables()
+            await self.art_mention.create_tables()
 
     async def on_ready(self):
         print("[Anankos by EndenDragon#1337]")

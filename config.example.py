@@ -37,9 +37,7 @@ CONFIG = {
     "lfs_roleid": 755687552434044929,
 
     # Art Mention
-    "art_mention": {
-        "lucina": 605091599772549140
-    },
+    "artmention_base_role_id": 793711429597134908,
 
     "permanent_roles": {
         602633229614448640: [635378577831100466],
