@@ -27,6 +27,7 @@ class ArtMention:
     async def background_task(self):
         await self.client.wait_until_ready()
         while not self.client.is_closed():
+            await asyncio.sleep(432000) # 5 days
             for guild in self.client.guilds:
                 for role in list(guild.roles):
                     if role.name.endswith(" - Fanart Notification"):
@@ -34,7 +35,6 @@ class ArtMention:
                             await role.delete()
                         except:
                             pass
-            await asyncio.sleep(86400) # 1 day
 
     async def on_message(self, message):
         if message.author.id == self.client.user.id or len(message.content) == 0:
