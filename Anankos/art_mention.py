@@ -138,7 +138,7 @@ class ArtMention:
         existing = await self.get_all_user_subscriptions(message.author.id)
         success = []
         failed_not_subbed = []
-        characters = set(content_spit[1:])
+        characters = set(content_split[1:])
         for character in characters:
             character = character.lower()
             if character not in existing:
