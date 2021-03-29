@@ -99,7 +99,7 @@ class ArtMention:
                 await member.remove_roles(role)
         for user in users:
             if user not in role.members:
-                await member.add_roles(role)
+                await user.add_roles(role)
         return role
 
     async def cmd_subscribe(self, message):
