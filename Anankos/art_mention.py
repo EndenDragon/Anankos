@@ -22,19 +22,52 @@ class ArtMention:
             );
             """
         )
+        await self.client.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS art_mention_timestamp (
+                character VARCHAR,
+                timestamp TIMESTAMP,
+                UNIQUE(character)
+            );
+            """
+        )
         await self.client.db.commit()
 
     async def background_task(self):
         await self.client.wait_until_ready()
         while not self.client.is_closed():
-            await asyncio.sleep(1209600) # 14 days
             for guild in self.client.guilds:
                 for role in list(guild.roles):
                     if role.name.endswith(" - Fanart Notification"):
-                        try:
-                            await role.delete()
-                        except:
-                            pass
+                        character = role.name.split()[0]
+                        if await self.role_expired(character):
+                            try:
+                                await role.delete()
+                            except:
+                                pass
+            await asyncio.sleep(43200) # 12 hours
+
+    async def role_expired(self, character):
+        character = character.lower()
+        cursor = await self.client.db.execute("SELECT timestamp FROM art_mention_timestamp WHERE character = ? LIMIT 1;", (character, ))
+        row = await cursor.fetchone()
+        if row is None:
+            return True
+        timestamp = row[0]
+        elapsed_last = (datetime.datetime.now() - timestamp).total_seconds()
+        time_left = max(259200 - elapsed_last, 0) # 3 days
+        return time_left <= 0
+
+    async def bump_character(self, character):
+        character = character.lower()
+        time = datetime.datetime.now()
+        cursor = await self.client.db.execute("SELECT timestamp FROM art_mention_timestamp WHERE character = ? LIMIT 1;", (character, ))
+        row = await cursor.fetchone()
+        if row is None:
+            await self.client.db.execute("INSERT INTO art_mention_timestamp (character, timestamp) VALUES (?, ?);", (character, time))
+        else:
+            await self.client.db.execute("UPDATE art_mention_timestamp SET timestamp = ? WHERE character = ?;", (time, character))
+        await self.client.db.commit()
 
     async def on_message(self, message):
         if message.author.id == self.client.user.id or len(message.content) == 0:
@@ -60,6 +93,7 @@ class ArtMention:
             if not role:
                 continue
             roles_to_mention.add(role)
+            await self.bump_character(character)
         if len(roles_to_mention):
             mentions = ""
             for role in roles_to_mention:
