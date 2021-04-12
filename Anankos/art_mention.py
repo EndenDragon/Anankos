@@ -138,7 +138,7 @@ class ArtMention:
     async def cmd_subscribe(self, message):
         content_split = message.content.lower().split()
         if len(content_split) == 1:
-            await message.channel.send("Please specify all the fanart notifications you would like to subscribe. Seperate multiple ones by a space.")
+            await self.respond(message, "Please specify all the fanart notifications you would like to subscribe. Seperate multiple ones by a space.", "✅")
             return
         existing = await self.get_all_user_subscriptions(message.author.id)
         success = []
@@ -158,11 +158,21 @@ class ArtMention:
         result = "{} ".format(message.author.mention)
         if len(success):
             result = result + "Successfully subscribed to **{}**. To view your current subscriptions, use `!listsubs`.\n".format(", ".join(success))
+            emoji = "✅"
         if len(fail_already_subbed):
             result = result + "You have already subscribed to **{}**.\n".format(", ".join(fail_already_subbed))
+            emoji = "❌"
         if len(fail_illegal_format):
             result = result + "Unable to subscribe to **{}**. Names must only contain letter and numbers.".format(", ".join(fail_illegal_format))
-        await message.channel.send(result)
+            emoji = "❌"
+        await self.respond(message, result, emoji)
+
+    async def respond(self, message, contents, emoji):
+        msg = await message.channel.send(contents)
+        if message.channel.id in self.image_channelids:
+            await message.add_reaction(emoji)
+            await asyncio.sleep(15)
+            await msg.delete()
 
     async def cmd_unsubscribe(self, message):
         content_split = message.content.lower().split()
