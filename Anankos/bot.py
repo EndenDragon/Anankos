@@ -48,14 +48,14 @@ class Anankos(discord.Client):
         print('------')
 
     async def on_message(self, message):
-        await self.pick_a_number.on_message(message)
-        await self.bad_words.on_message(message)
-        await self.trivia.on_message(message)
-        await self.reddit_publish.on_message(message)
-        await self.looking_for_smash.on_message(message)
-        await self.mass_corrin_ping.on_message(message)
-        await self.art_mention.on_message(message)
-        await self.image_embed.on_message(message)
+        self.loop.create_task(self.pick_a_number.on_message(message))
+        self.loop.create_task(self.bad_words.on_message(message))
+        self.loop.create_task(self.trivia.on_message(message))
+        self.loop.create_task(self.reddit_publish.on_message(message))
+        self.loop.create_task(self.looking_for_smash.on_message(message))
+        self.loop.create_task(self.mass_corrin_ping.on_message(message))
+        self.loop.create_task(self.art_mention.on_message(message))
+        self.loop.create_task(self.image_embed.on_message(message))
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)

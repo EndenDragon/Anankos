@@ -55,7 +55,7 @@ class ArtMention:
             return True
         timestamp = row[0]
         elapsed_last = (datetime.datetime.now() - timestamp).total_seconds()
-        time_left = max(259200 - elapsed_last, 0) # 3 days
+        time_left = max(172800 - elapsed_last, 0) # 2 days
         return time_left <= 0
 
     async def bump_character(self, character):
