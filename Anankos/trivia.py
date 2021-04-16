@@ -25,20 +25,27 @@ class Trivia:
                 reader = csv.reader(csvfile)
                 next(reader)
                 for row in reader:
-                    self.questions.append(self.Question(row[0], row[1], row[2], row[3], row[4], row[5]))
+                    image = None
+                    if len(row) == 7:
+                        image = row[6]
+                    self.questions.append(self.Question(row[0], row[1], row[2], row[3], row[4], row[5], image))
 
         self.bg_task = self.client.loop.create_task(self.background_task())
+
+        self.bg_task_qend = None
+        self.current_winners = {}
+        self.first_answer_timestamp = None
 
     async def create_tables(self):
         await self.client.db.execute(
             """
-            CREATE TABLE IF NOT EXISTS trivia (
+            CREATE TABLE IF NOT EXISTS trivia2 (
                 eventid VARCHAR,
                 userid BIGINT,
                 timestamp TIMESTAMP,
                 problemid INT,
                 points INT,
-                UNIQUE(eventid, problemid)
+                UNIQUE(eventid, userid, problemid)
             );
             """
         )
@@ -97,23 +104,21 @@ class Trivia:
         if question.answer.lower() != answer.lower():
             # await message.channel.send("wrong.")
             return
-        mins_elapsed = (datetime.datetime.now() - self.last_posted).total_seconds() / 60
+        if self.first_answer_timestamp is None:
+            self.first_answer_timestamp = datetime.datetime.now()
+        mins_elapsed = (datetime.datetime.now() - self.last_posted).total_seconds()
         points = self.calculate_points(mins_elapsed, question.difficulty)
-        points_str = str(points)
         if question.bonus:
             points = points + 15
-            points_str = points_str + "+15"
         await self.client.db.execute(
             """
-            INSERT INTO trivia (eventid, userid, timestamp, problemid, points)
+            INSERT INTO trivia2 (eventid, userid, timestamp, problemid, points)
             VALUES (?, ?, ?, ?, ?);
             """,
             (self.event_id, message.author.id, datetime.datetime.now(), self.current_problemid, points)
         )
         await self.client.db.commit()
-        embed = self.get_question_answer_embed()
-        msg = await message.channel.send("**{}** got the correct answer, which is **{}**! *(+{} points)*".format(message.author.mention, question.answer, points_str), embed=embed)
-        await msg.pin()
+        self.current_winners[message.author] = points
 
     async def background_task(self):
         if not self.enabled:
@@ -127,6 +132,26 @@ class Trivia:
                 return
             await asyncio.sleep(60)
 
+    async def close_answer_bg_task(self):
+        while self.first_answer_timestamp == None or (datetime.datetime.now() - self.first_answer_timestamp).total_seconds() < 20:
+            await asyncio.sleep(1)
+        self.bg_task_qend = None
+        self.first_answer_timestamp = None
+        question = self.questions[self.current_problemid]
+        embed = self.get_question_answer_embed()
+        winner_fmt = ""
+        first = None
+        first_pts = 0
+        for winner in sorted(self.current_winners, key=self.current_winners.get, reverse=True):
+            if first is None:
+                first = winner
+                first_pts = self.current_winners[winner]
+            else:
+                winner_fmt = winner_fmt + "\n{} (+{} points)".format(winner.mention, self.current_winners[winner])
+        msg = await self.client.get_channel(self.channel_id).send("**{}** got the correct answer, which is **{}**! *(+{} points)*{}".format(first.mention, question.answer, first_pts, winner_fmt), embed=embed)
+        await msg.pin()
+        self.current_winners = {}
+
     async def post_next_question(self):
         await self.update_config(
             self.current_problemid + 1,
@@ -138,10 +163,13 @@ class Trivia:
         await self.ask_current_question()
 
     async def ask_current_question(self):
+        self.current_winners = {}
+        self.first_answer_timestamp = None
         await self.delete_all_bot_pins()
         embed = self.get_question_embed()
         role = self.client.get_channel(self.channel_id).guild.get_role(self.role_id)
         await self.client.get_channel(self.channel_id).send("Look out {}! Next question is dropping in 30 seconds!".format(role.mention))
+        self.bg_task_qend = self.client.loop.create_task(self.close_answer_bg_task())
         await asyncio.sleep(30)
         message = await self.client.get_channel(self.channel_id).send(role.mention, embed=embed)
         await message.pin()
@@ -163,6 +191,8 @@ class Trivia:
         if question.hint:
             embed.add_field(name="Hint:", value=question.hint, inline=True)
         embed.add_field(name="Difficulty", value=question.difficulty, inline=True)
+        if question.image:
+            embed.set_image(url=question.image)
         return embed
 
     def get_question_answer_embed(self):
@@ -176,6 +206,8 @@ class Trivia:
         if question.bonus:
             embed.set_footer(text="Received extra points as this is a BONUS QUESTION.", icon_url="https://i.imgur.com/r3kCfzq.png")
         embed.add_field(name="Difficulty", value=question.difficulty, inline=True)
+        if question.image:
+            embed.set_image(url=question.image)
         return embed
 
     async def delete_all_bot_pins(self):
@@ -204,23 +236,21 @@ class Trivia:
     async def question_is_answered(self):
         if self.current_problemid < 0:
             return True
+        if self.bg_task_qend is not None:
+            return False
         cursor = await self.client.db.execute(
-            "SELECT problemid FROM trivia WHERE eventid = ? AND problemid = ?;",
+            "SELECT problemid FROM trivia2 WHERE eventid = ? AND problemid = ?;",
             (self.event_id, self.current_problemid)
         )
         row = await cursor.fetchall()
         return len(row) > 0
 
-    def calculate_points(self, mins_elapsed, difficulty):
+    def calculate_points(self, seconds_elapsed, difficulty):
         base_point = [70, 80, 90, 100, 110]
-        points = round(self._easeOutQuad(
-            mins_elapsed,
-            base_point[difficulty - 1],
-            -60,
-            17 # 17 minutes for minimum points
-        ))
-        if points == base_point[difficulty - 1] - 60:
-            points = points + random.choice([0, 0, 1, 2, 3])
+        # 10 second answer get bonus points
+        points = (math.cos((math.pi * min(seconds_elapsed, 10)) / 10) + 1) / 2
+        points = base_point[difficulty - 1] + round(max(0, points * 10))
+        points = points - min(10, len(self.current_winners) * 2)
         return points
 
     # t-currentTime, b-startvalue, c-changeInValue, d-duration
@@ -245,7 +275,7 @@ class Trivia:
         cursor = await self.client.db.execute(
             """
             SELECT userid, sum(points)
-            FROM trivia
+            FROM trivia2
             WHERE eventid = ?
             GROUP BY userid
             ORDER BY sum(points) DESC
@@ -263,7 +293,7 @@ class Trivia:
         cursor = await self.client.db.execute(
             """
             SELECT sum(points)
-            FROM trivia
+            FROM trivia2
             WHERE eventid = ? AND userid = ?
             GROUP BY userid
             """,
@@ -328,13 +358,14 @@ class Trivia:
         return cool_str
 
     class Question:
-        def __init__(self, question, answer, hint, question_type, difficulty, bonus):
+        def __init__(self, question, answer, hint, question_type, difficulty, bonus, image=None):
             self.question = str(question).strip()
             self.answer = str(answer).strip()
             self.hint = str(hint).strip()
             self.question_type = str(question_type).strip()
             self.difficulty = int(difficulty)
             self.bonus = True if bonus == "TRUE" else False
+            self.image = image
 
         def __str__(self):
             return self.question
