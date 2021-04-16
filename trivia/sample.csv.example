@@ -1,2 +1,9 @@
-Question,Answer,Hint,QuestionType,"Difficulty (1, 2, 3, 4, 5)",Bonus
-What game is Dragalia Lost?,RPG,R#G,Single Word,1,FALSE
+Question,Answer,Hint,QuestionType,"Difficulty (1, 2, 3, 4, 5)",Bonus,Image
+What game is Dragalia Lost?,RPG,R#G,Single Word,1,FALSE,
+The answer is Corrin,Corrin,Type Corrin,Single Word,2,FALSE,https://static.wikia.nocookie.net/fireemblem/images/7/72/Avatar_FE14_Female.png/revision/latest/scale-to-width-down/1000?cb=20161117043925
+What messaging app is this?,Discord,Discord,Single Word,4,TRUE,
+What is the server name?,Corrin Conclave,Server name lol,Multi Word,3,FALSE,
+Who is she?,Tsubasa,Tsubasa?,Single Word,3,TRUE,https://static.wikia.nocookie.net/feheroes_gamepedia_en/images/1/1b/Tsubasa_Madcap_Idol_BtlFace_C.webp/revision/latest?cb=20200117045930&format=original
+Who is the server owner?,EndenDragon,Enden######,Single Word,2,FALSE,
+What Discord theme does EndenDragon use?,Light,L####,Single Word,3,FALSE,
+Who is she?,Althemia,Al######,Single Word,2,TRUE,https://dragalialost.wiki/images/7/7f/110047_01_r03_portrait.png

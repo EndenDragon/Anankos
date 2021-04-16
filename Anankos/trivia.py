@@ -106,8 +106,8 @@ class Trivia:
             return
         if self.first_answer_timestamp is None:
             self.first_answer_timestamp = datetime.datetime.now()
-        mins_elapsed = (datetime.datetime.now() - self.last_posted).total_seconds()
-        points = self.calculate_points(mins_elapsed, question.difficulty)
+        secs_elapsed = (datetime.datetime.now() - self.last_posted).total_seconds()
+        points = self.calculate_points(secs_elapsed, question.difficulty)
         if question.bonus:
             points = points + 15
         await self.client.db.execute(
@@ -173,6 +173,11 @@ class Trivia:
         await asyncio.sleep(30)
         message = await self.client.get_channel(self.channel_id).send(role.mention, embed=embed)
         await message.pin()
+        await self.update_config(
+            self.current_problemid,
+            datetime.datetime.now(),
+            datetime.datetime.now() + datetime.timedelta(minutes=self.get_random_minutes())
+        )
 
     def get_question_embed(self):
         question = self.questions[self.current_problemid]
@@ -365,7 +370,7 @@ class Trivia:
             self.question_type = str(question_type).strip()
             self.difficulty = int(difficulty)
             self.bonus = True if bonus == "TRUE" else False
-            self.image = image
+            self.image = image if image else None
 
         def __str__(self):
             return self.question
