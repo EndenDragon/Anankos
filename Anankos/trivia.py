@@ -195,7 +195,7 @@ class Trivia:
             embed.set_footer(text="Our sources indicates that this is a BONUS QUESTION, which awards more points than usual!", icon_url="https://i.imgur.com/r3kCfzq.png")
         if question.hint:
             embed.add_field(name="Hint:", value=question.hint, inline=True)
-        embed.add_field(name="Difficulty", value=question.difficulty, inline=True)
+        embed.add_field(name="Value", value=question.difficulty, inline=True)
         if question.image:
             embed.set_image(url=question.image)
         return embed
@@ -210,7 +210,7 @@ class Trivia:
         embed.set_author(name="Trivia Question Answered!!", icon_url="https://i.imgur.com/nworthx.png")
         if question.bonus:
             embed.set_footer(text="Received extra points as this is a BONUS QUESTION.", icon_url="https://i.imgur.com/r3kCfzq.png")
-        embed.add_field(name="Difficulty", value=question.difficulty, inline=True)
+        embed.add_field(name="Value", value=question.difficulty, inline=True)
         if question.image:
             embed.set_image(url=question.image)
         return embed
