@@ -133,7 +133,7 @@ class Trivia:
             await asyncio.sleep(60)
 
     async def close_answer_bg_task(self):
-        while self.first_answer_timestamp == None or (datetime.datetime.now() - self.first_answer_timestamp).total_seconds() < 20:
+        while self.first_answer_timestamp == None or (datetime.datetime.now() - self.first_answer_timestamp).total_seconds() < 10:
             await asyncio.sleep(1)
         self.bg_task_qend = None
         self.first_answer_timestamp = None
