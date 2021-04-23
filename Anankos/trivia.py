@@ -4,6 +4,9 @@ import asyncio
 import random
 import discord
 import math
+import aiohttp
+import mimetypes
+import io
 
 class Trivia:
     def __init__(self, client, enabled, channel_id, event_id, role_id, cooldown_min, cooldown_max):
@@ -138,7 +141,7 @@ class Trivia:
         self.bg_task_qend = None
         self.first_answer_timestamp = None
         question = self.questions[self.current_problemid]
-        embed = self.get_question_answer_embed()
+        embed, image_file = await self.get_question_answer_embed()
         winner_fmt = ""
         first = None
         first_pts = 0
@@ -148,7 +151,7 @@ class Trivia:
                 first_pts = self.current_winners[winner]
             else:
                 winner_fmt = winner_fmt + "\n{} (+{} points)".format(winner.mention, self.current_winners[winner])
-        msg = await self.client.get_channel(self.channel_id).send("**{}** got the correct answer, which is **{}**! *(+{} points)*{}".format(first.mention, question.answer, first_pts, winner_fmt), embed=embed)
+        msg = await self.client.get_channel(self.channel_id).send("**{}** got the correct answer, which is **{}**! *(+{} points)*{}".format(first.mention, question.answer, first_pts, winner_fmt), embed=embed, file=image_file)
         await msg.pin()
         self.current_winners = {}
 
@@ -166,12 +169,12 @@ class Trivia:
         self.current_winners = {}
         self.first_answer_timestamp = None
         await self.delete_all_bot_pins()
-        embed = self.get_question_embed()
+        embed, image_file = await self.get_question_embed()
         role = self.client.get_channel(self.channel_id).guild.get_role(self.role_id)
         await self.client.get_channel(self.channel_id).send("Look out {}! Next question is dropping in 30 seconds!".format(role.mention))
         self.bg_task_qend = self.client.loop.create_task(self.close_answer_bg_task())
         await asyncio.sleep(30)
-        message = await self.client.get_channel(self.channel_id).send(role.mention, embed=embed)
+        message = await self.client.get_channel(self.channel_id).send(role.mention, embed=embed, file=image_file)
         await message.pin()
         await self.update_config(
             self.current_problemid,
@@ -179,7 +182,19 @@ class Trivia:
             datetime.datetime.now() + datetime.timedelta(minutes=self.get_random_minutes())
         )
 
-    def get_question_embed(self):
+    async def get_image_file(self, url=None):
+        if not url:
+            return None
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                buffer = io.BytesIO(await resp.read())
+                contentType = resp.headers.get('content-type')
+                extension = mimetypes.guess_extension(contentType)
+                image_file = discord.File(buffer, "image" + extension)
+                return image_file
+        return None
+
+    async def get_question_embed(self):
         question = self.questions[self.current_problemid]
         description = "This is a {} question.".format(question.question_type)
         if question.hint and "#" in question.hint:
@@ -196,11 +211,13 @@ class Trivia:
         if question.hint:
             embed.add_field(name="Hint:", value=question.hint, inline=True)
         embed.add_field(name="Value", value=question.difficulty, inline=True)
+        image_file = None
         if question.image:
-            embed.set_image(url=question.image)
-        return embed
+            image_file = await self.get_image_file(question.image)
+            embed.set_image(url="attachment://" + image_file.filename)
+        return embed, image_file
 
-    def get_question_answer_embed(self):
+    async def get_question_answer_embed(self):
         question = self.questions[self.current_problemid]
         description = "Please wait for the next question.".format(question.question_type)
         embed = discord.Embed(
@@ -211,9 +228,11 @@ class Trivia:
         if question.bonus:
             embed.set_footer(text="Received extra points as this is a BONUS QUESTION.", icon_url="https://i.imgur.com/r3kCfzq.png")
         embed.add_field(name="Value", value=question.difficulty, inline=True)
+        image_file = None
         if question.image:
-            embed.set_image(url=question.image)
-        return embed
+            image_file = await self.get_image_file(question.image)
+            embed.set_image(url="attachment://" + image_file.filename)
+        return embed, image_file
 
     async def delete_all_bot_pins(self):
         pins = list(await self.client.get_channel(self.channel_id).pins())
