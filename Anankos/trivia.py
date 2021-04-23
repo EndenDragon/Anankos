@@ -107,6 +107,8 @@ class Trivia:
         if question.answer.lower() != answer.lower():
             # await message.channel.send("wrong.")
             return
+        if message.author in self.current_winners:
+            return
         if self.first_answer_timestamp is None:
             self.first_answer_timestamp = datetime.datetime.now()
         secs_elapsed = (datetime.datetime.now() - self.last_posted).total_seconds()
