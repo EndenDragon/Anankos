@@ -1,6 +1,7 @@
 import datetime
 import discord
 import asyncio
+import re
 
 class ArtMention:
     def __init__(self, client, image_channelids, base_role_id):
@@ -9,6 +10,7 @@ class ArtMention:
         self.base_role_id = base_role_id
         self.mention_last = {}
         self.cooldown = 30 * 60
+        self.re_compiled = {}
         
         self.bg_task = self.client.loop.create_task(self.background_task())
 
@@ -84,7 +86,12 @@ class ArtMention:
         roles_to_mention = set()
         for character, subscribed_users in (await self.get_all_subscriptions()).items():
             character = character.lower()
-            if "!!{}".format(character) not in content_split:
+            compiled = self.re_compiled.get(character, None)
+            if compiled is None:
+                compiled = re.compile("^!!{}\W*$".format(character))
+                self.re_compiled[character] = compiled
+            matches_character = False
+            if not any(compiled.match(token) for token in content_split):
                 continue
             if self.get_cooldown_seconds(character) > 0:
                 continue
