@@ -215,6 +215,18 @@ class ArtMention:
             count = []
             for character, users in subs.items():
                 count.append("**{}** ({})".format(character, len(users)))
+            result = "List of all subscriptions: {}".format(", ".join(count))
+            lines = result.splitlines()
+            for line in lines:
+                output = ""
+                tokens = line.split()
+                for token in tokens:
+                    output = output + token + " "
+                    if len(output) > 1900:
+                        await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
+                        output = ""
+                if output:
+                    await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
             await message.channel.send("List of all subscriptions: {}".format(", ".join(count)))
         result = ""
         for mention in message.mentions:
@@ -234,20 +246,7 @@ class ArtMention:
                         members.append(user.mention)
                 result = result + "Members who subscribed to **{}** ({}): {}\n".format(character, len(members), ", ".join(members))
         if result:
-            if len(result) < 1500:
-                await message.channel.send(result, allowed_mentions=discord.AllowedMentions.none())
-            else:
-                lines = result.splitlines()
-                for line in lines:
-                    output = ""
-                    tokens = line.split()
-                    for token in tokens:
-                        output = output + token + " "
-                        if len(output) > 1500:
-                            await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
-                            output = ""
-                    if output:
-                        await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
+            await message.channel.send(result, allowed_mentions=discord.AllowedMentions.none())
 
     async def get_all_subscriptions(self):
         cursor = await self.client.db.execute("SELECT userid, character FROM art_mention ORDER BY character;")
