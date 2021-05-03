@@ -161,7 +161,7 @@ class ArtMention:
                 fail_illegal_format.append(character)
                 continue
             await self.subscribe_user(message.author.id, character)
-            success.append(character)
+            success.append("{}-{}".format(character, await self.get_sub_count(character)))
         result = "{} ".format(message.author.mention)
         if len(success):
             result = result + "Successfully subscribed to **{}**. To view your current subscriptions, use `!listsubs`.\n".format(", ".join(success))
@@ -234,7 +234,20 @@ class ArtMention:
                         members.append(user.mention)
                 result = result + "Members who subscribed to **{}** ({}): {}\n".format(character, len(members), ", ".join(members))
         if result:
-            await message.channel.send(result, allowed_mentions=discord.AllowedMentions.none())
+            if len(result) < 1900:
+                await message.channel.send(result, allowed_mentions=discord.AllowedMentions.none())
+            else:
+                lines = result.splitlines()
+                for line in lines:
+                    output = ""
+                    tokens = line.split()
+                    for token in tokens:
+                        output = output + token + " "
+                        if len(output) > 1900:
+                            await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
+                            output = ""
+                    if output:
+                        await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
 
     async def get_all_subscriptions(self):
         cursor = await self.client.db.execute("SELECT userid, character FROM art_mention ORDER BY character;")
@@ -247,6 +260,16 @@ class ArtMention:
                 result[char] = []
             result[char].append(uid)
         return result
+
+    async def get_sub_count(self, character):
+        subs = (await self.get_all_subscriptions()).get(character)
+        count = 0
+        for user in subs:
+            user = self.client.get_user(user)
+            if user:
+                count = count + 1
+        return count
+
 
     async def get_all_user_subscriptions(self, user_id):
         subscriptions = await self.get_all_subscriptions()
