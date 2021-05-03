@@ -234,7 +234,7 @@ class ArtMention:
                         members.append(user.mention)
                 result = result + "Members who subscribed to **{}** ({}): {}\n".format(character, len(members), ", ".join(members))
         if result:
-            if len(result) < 1900:
+            if len(result) < 1500:
                 await message.channel.send(result, allowed_mentions=discord.AllowedMentions.none())
             else:
                 lines = result.splitlines()
@@ -243,7 +243,7 @@ class ArtMention:
                     tokens = line.split()
                     for token in tokens:
                         output = output + token + " "
-                        if len(output) > 1900:
+                        if len(output) > 1500:
                             await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
                             output = ""
                     if output:
