@@ -101,11 +101,12 @@ class ArtMention:
                 continue
             roles_to_mention.add(role)
             await self.bump_character(character)
+        #roles_to_mention = list(roles_to_mention)[:9]
         if len(roles_to_mention):
             mentions = ""
             for role in roles_to_mention:
                 mentions = mentions + role.mention + " "
-            await message.reply(mentions)
+            await message.reply(mentions, mention_author=False)
 
     async def get_role(self, character, guild):
         if not guild:
@@ -161,7 +162,7 @@ class ArtMention:
                 fail_illegal_format.append(character)
                 continue
             await self.subscribe_user(message.author.id, character)
-            success.append("{}-{}".format(character, await self.get_sub_count(character)))
+            success.append("{} ({})".format(character, await self.get_sub_count(character)))
         result = "{} ".format(message.author.mention)
         if len(success):
             result = result + "Successfully subscribed to **{}**. To view your current subscriptions, use `!listsubs`.\n".format(", ".join(success))
