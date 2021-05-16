@@ -96,17 +96,30 @@ class ArtMention:
             if self.get_cooldown_seconds(character) > 0:
                 continue
             self.mention_last[character] = datetime.datetime.now()
+            await self.add_wait_emote(message)
             role = await self.get_role(character, message.guild)
             if not role:
                 continue
             roles_to_mention.add(role)
             await self.bump_character(character)
+        await self.remove_wait_emote(message)
         #roles_to_mention = list(roles_to_mention)[:9]
         if len(roles_to_mention):
             mentions = ""
             for role in roles_to_mention:
                 mentions = mentions + role.mention + " "
             await message.reply(mentions, mention_author=False)
+
+    async def add_wait_emote(self, message):
+        for reaction in message.reactions:
+            if str(reaction.emoji) == "⌛" and reaction.me:
+                return
+        await message.add_reaction("⌛")
+
+    async def remove_wait_emote(self, message):
+        for reaction in message.reactions:
+            if str(reaction.emoji) == "⌛" and reaction.me:
+                await message.remove_reaction("⌛", self.client.user)
 
     async def get_role(self, character, guild):
         if not guild:
