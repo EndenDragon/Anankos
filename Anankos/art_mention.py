@@ -117,6 +117,7 @@ class ArtMention:
         await message.add_reaction("⌛")
 
     async def remove_wait_emote(self, message):
+        message = await message.channel.fetch_message(message.id)
         for reaction in message.reactions:
             if str(reaction.emoji) == "⌛" and reaction.me:
                 await message.remove_reaction("⌛", self.client.user)
