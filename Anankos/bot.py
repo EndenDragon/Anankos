@@ -8,6 +8,7 @@ from Anankos.reddit_publish import RedditPublish
 from Anankos.looking_for_smash import LookingForSmash
 from Anankos.mass_corrin_ping import MassCorrinPing
 from Anankos.art_mention import ArtMention
+from Anankos.nitro_emote import NitroEmote
 
 import discord
 import aiosqlite
@@ -32,6 +33,7 @@ class Anankos(discord.Client):
         self.looking_for_smash = LookingForSmash(self, config.get("lfs_channelid"), config.get("lfs_roleid"))
         self.mass_corrin_ping = MassCorrinPing(self)
         self.art_mention = ArtMention(self, config.get("image_channelids", []), config.get("artmention_base_role_id", ""))
+        self.nitro_emote = NitroEmote(self)
 
     async def on_connect(self):
         if self.db is None:
@@ -56,6 +58,7 @@ class Anankos(discord.Client):
         self.loop.create_task(self.mass_corrin_ping.on_message(message))
         self.loop.create_task(self.art_mention.on_message(message))
         self.loop.create_task(self.image_embed.on_message(message))
+        self.loop.create_task(self.nitro_emote.on_message(message))
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)
