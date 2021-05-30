@@ -205,7 +205,7 @@ class ArtMention:
                 elapsed = (last_posted - role_created).total_seconds()
                 streaks.append((character, elapsed))
         streaks = sorted(streaks, key = lambda x: x[1], reverse=True)
-        output = "**Fanart Notification Streaks**\nNotification roles are removed when they have not been used in a while. These characters have been used recently."
+        output = "**Fanart Notification Streaks**\nNotification roles are removed when they have not been used in a while. These characters have been used recently and held their role for this long since it was made until the last time it was used."
         for streak in streaks:
             character = streak[0]
             elapsed = self.format_cooldown(streak[1])
