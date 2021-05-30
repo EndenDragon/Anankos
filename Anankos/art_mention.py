@@ -193,13 +193,17 @@ class ArtMention:
     async def cmd_streak(self, message):
         streaks = []
         subs = await self.get_all_subscriptions()
+        time_diff = (datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds()
         for character in subs.keys():
             role = await self.get_role(character, message.guild, False)
             if role:
                 elapsed_last = await self.get_time_elapsed(character)
-                if elapsed_last == -1:
+                if elapsed_last < 0:
                     continue
-                streaks.append((character, elapsed_last))
+                last_posted = datetime.datetime.now() - datetime.timedelta(seconds=elapsed_last)
+                role_created = role.created_at + datetime.timedelta(seconds=time_diff)
+                elapsed = (last_posted - role_created).total_seconds()
+                streaks.append((character, elapsed))
         streaks = sorted(streaks, key = lambda x: x[1], reverse=True)
         output = "**Fanart Notification Streaks**\nNotification roles are removed when they have not been used in a while. These characters have been used recently."
         for streak in streaks:
@@ -209,7 +213,6 @@ class ArtMention:
         if len(streaks) == 0:
             output = output + "\n(there are none)"
         await message.channel.send(output)
-        
 
     async def cmd_subscribe(self, message):
         content_split = message.content.lower().split()
