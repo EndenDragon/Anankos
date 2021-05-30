@@ -50,15 +50,21 @@ class ArtMention:
             await asyncio.sleep(43200) # 12 hours
 
     async def role_expired(self, character):
+        elapsed_last = await self.get_time_elapsed(character)
+        if elapsed_last < 0:
+            return True
+        time_left = max(172800 - elapsed_last, 0) # 2 days
+        return time_left <= 0
+
+    async def get_time_elapsed(self, character):
         character = character.lower()
         cursor = await self.client.db.execute("SELECT timestamp FROM art_mention_timestamp WHERE character = ? LIMIT 1;", (character, ))
         row = await cursor.fetchone()
         if row is None:
-            return True
+            return -1
         timestamp = row[0]
         elapsed_last = (datetime.datetime.now() - timestamp).total_seconds()
-        time_left = max(172800 - elapsed_last, 0) # 2 days
-        return time_left <= 0
+        return elapsed_last
 
     async def bump_character(self, character):
         character = character.lower()
@@ -80,6 +86,8 @@ class ArtMention:
             await self.cmd_unsubscribe(message)
         elif message.content.startswith(self.client.cmd_prefix + "listsubs"):
             await self.cmd_listsubs(message)
+        elif message.content.startswith(self.client.cmd_prefix + "streak"):
+            await self.cmd_streak(message)
         if message.channel.id not in self.image_channelids:
             return
         content_split = message.content.lower().split()
@@ -122,7 +130,7 @@ class ArtMention:
             if str(reaction.emoji) == "⌛" and reaction.me:
                 await message.remove_reaction("⌛", self.client.user)
 
-    async def get_role(self, character, guild):
+    async def get_role(self, character, guild, create_role=True):
         if not guild:
             return None
         subscriptions = await self.get_all_subscriptions()
@@ -146,16 +154,62 @@ class ArtMention:
             if server_role.name == role_name:
                 role = server_role
                 break
-        if not role:
-            role = await guild.create_role(name=role_name)
-            await guild.edit_role_positions({role: base_role.position - 1})
-        for member in list(role.members):
-            if member not in users:
-                await member.remove_roles(role)
-        for user in users:
-            if user not in role.members:
-                await user.add_roles(role)
+        if create_role:
+            if not role:
+                role = await guild.create_role(name=role_name)
+                await guild.edit_role_positions({role: base_role.position - 1})
+            for member in list(role.members):
+                if member not in users:
+                    await member.remove_roles(role)
+            for user in users:
+                if user not in role.members:
+                    await user.add_roles(role)
         return role
+
+    def format_cooldown(self, cooldown):
+        if cooldown <= 0:
+            return "0s"
+        cooldown_tmp = cooldown
+        cool_hrs = 0
+        cool_mins = 0
+        cool_secs = 0
+        while cooldown_tmp >= 3600:
+            cool_hrs = cool_hrs + 1
+            cooldown_tmp = cooldown_tmp - 3600
+        while cooldown_tmp >= 60:
+            cool_mins = cool_mins + 1
+            cooldown_tmp = cooldown_tmp - 60
+        cool_secs = cooldown_tmp
+        cool_str = ""
+        if cool_hrs:
+            cool_str = cool_str + " {}h".format(cool_hrs)
+        if cool_mins:
+            cool_str = cool_str + " {}m".format(cool_mins)
+        if cool_secs:
+            cool_str = cool_str + " {}s".format(cool_secs)
+        cool_str = cool_str.strip()
+        return cool_str
+
+    async def cmd_streak(self, message):
+        streaks = []
+        subs = await self.get_all_subscriptions()
+        for character in subs.keys():
+            role = await self.get_role(character, message.guild, False)
+            if role:
+                elapsed_last = await self.get_time_elapsed(character)
+                if elapsed_last == -1:
+                    continue
+                streaks.append((character, elapsed_last))
+        streaks = sorted(streaks, key = lambda x: x[1], reverse=True)
+        output = "**Fanart Notification Streaks**\nNotification roles are removed when they have not been used in a while. These characters have been used recently."
+        for streak in streaks:
+            character = streak[0]
+            elapsed = self.format_cooldown(streak[1])
+            output = output + "\n{}, {}".format(character, elapsed)
+        if len(streaks) == 0:
+            output = output + "\n(there are none)"
+        await message.channel.send(output)
+        
 
     async def cmd_subscribe(self, message):
         content_split = message.content.lower().split()
