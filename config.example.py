@@ -56,4 +56,8 @@ CONFIG = {
     "Triv_cooldown_min": 30,
     "Triv_cooldown_max": 50,
     "Triv_role_pingerid": 731457556542914580,
+
+    # Dragalia Notification (dragalianotif)
+    "dragalianotif_channelid": 705831040434044978,
+    "dragalianotif_roleid": 850314118195052584,
 }

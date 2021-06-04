@@ -9,6 +9,7 @@ from Anankos.looking_for_smash import LookingForSmash
 from Anankos.mass_corrin_ping import MassCorrinPing
 from Anankos.art_mention import ArtMention
 from Anankos.nitro_emote import NitroEmote
+from Anankos.dragalia_notification import DragaliaNotification
 
 import discord
 import aiosqlite
@@ -34,6 +35,7 @@ class Anankos(discord.Client):
         self.mass_corrin_ping = MassCorrinPing(self)
         self.art_mention = ArtMention(self, config.get("image_channelids", []), config.get("artmention_base_role_id", ""))
         self.nitro_emote = NitroEmote(self)
+        self.dragalia_notification = DragaliaNotification(self, config.get("dragalianotif_channelid"), config.get("dragalianotif_roleid"))
 
     async def on_connect(self):
         if self.db is None:
