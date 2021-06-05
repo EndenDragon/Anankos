@@ -92,7 +92,10 @@ class DragaliaNotification:
                 should_post = True
         if should_post:
             channel = self.client.get_channel(self.channel_id)
-            await channel.send(output)
+            webhooks = await channel.webhooks()
+            if len(webhooks):
+                webhook = webhooks[0]
+                await webhook.send(output)
 
     def include_secondary_event(self, name):
         name = name.lower()
