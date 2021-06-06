@@ -60,7 +60,7 @@ class DragaliaNotification:
             limit = 20,
             tables = "SecondaryEvents",
             fields = "Name,StartDate",
-            where = "StartDate > DATE_SUB(NOW(), INTERVAL 1 HOUR) AND StartDate < NOW()",
+            where = "StartDate > DATE_SUB(NOW(), INTERVAL 1 HOUR) AND StartDate < DATE_ADD(NOW(), INTERVAL 23 HOUR)",
             order_by = "StartDate DESC"
         )
         should_post = False
