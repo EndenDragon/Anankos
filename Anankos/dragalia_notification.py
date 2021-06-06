@@ -59,7 +59,7 @@ class DragaliaNotification:
         secondary_events = await self.cargo_query(
             limit = 20,
             tables = "SecondaryEvents",
-            fields = "Name,StartDate",
+            fields = "Name,StartDate,OfficialLink",
             where = "StartDate > DATE_SUB(NOW(), INTERVAL 1 HOUR) AND StartDate < DATE_ADD(NOW(), INTERVAL 23 HOUR)",
             order_by = "StartDate DESC"
         )
@@ -85,7 +85,7 @@ class DragaliaNotification:
                 if not self.include_secondary_event(name):
                     continue
                 secondary_should_post = True
-                secondary_events_output = secondary_events_output + "\n{}".format(name)
+                secondary_events_output = secondary_events_output + "\n{} (<{}>)".format(name, event["title"]["OfficialLink"])
             secondary_events_output = secondary_events_output + "\n"
             if secondary_should_post:
                 output = output + secondary_events_output
