@@ -135,10 +135,10 @@ class ArtMention:
         await component.defer(hidden=True)
         message = ""
         if character in existing:
-            message = "Already subscribed to **{}**.".format(character)
+            message = "❌ Already subscribed to **{}**.".format(character)
         else:
             await self.subscribe_user(author.id, character)
-            message = "Successfully subscribed to **{}**.".format(character)
+            message = "✅ Successfully subscribed to **{} ({})**.".format(character, await self.get_sub_count(character))
         await component.send(message, hidden=True)
 
     async def add_wait_emote(self, message):
