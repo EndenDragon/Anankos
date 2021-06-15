@@ -90,6 +90,8 @@ class ArtMention:
             await self.cmd_listsubs(message)
         elif message.content.startswith(self.client.cmd_prefix + "streak"):
             await self.cmd_streak(message)
+        elif message.content.startswith(self.client.cmd_prefix + "pingboard"):
+            await self.cmd_pingboard(message)
         if message.channel.id not in self.image_channelids:
             return
         content_split = message.content.lower().split()
@@ -221,6 +223,31 @@ class ArtMention:
             cool_str = cool_str + " {}s".format(cool_secs)
         cool_str = cool_str.strip()
         return cool_str
+
+    async def cmd_pingboard(self, message):
+        button_list = []
+        max_users = 0
+        subs = await self.get_all_subscriptions()
+        for character, users in subs.items():
+            max_users = max(max_users, len(users))
+        for character, users in subs.items():
+            button_style = ButtonStyle.gray
+            ratio = len(users) / max_users
+            if ratio > 0.3:
+                button_style = ButtonStyle.blue
+            if ratio > 0.6:
+                button_style = ButtonStyle.green
+            if ratio > 0.85:
+                button_style = ButtonStyle.red
+            button = create_button(style=button_style, label="{} ({})".format(character, len(users)), custom_id="art_mention {}".format(character))
+            button_list.append(button)
+        button_list = list(self.divide_chunks(button_list, 5))
+        button_list = list(self.divide_chunks(button_list, 5))
+        for message_chunk in button_list:
+            components = []
+            for chunk in message_chunk:
+                components.append(create_actionrow(*chunk))
+            await message.channel.send("​", components=components)
 
     async def cmd_streak(self, message):
         streaks = []
