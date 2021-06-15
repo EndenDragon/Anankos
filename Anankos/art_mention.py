@@ -270,11 +270,13 @@ class ArtMention:
         await self.respond(message, result, emoji)
 
     async def respond(self, message, contents, emoji):
-        msg = await message.channel.send(contents)
         if message.channel.id in self.image_channelids:
-            await message.add_reaction(emoji)
+            msg = await message.channel.send("❌ Commands are disabled in fanart channels, please use #bot-commands.")
             await asyncio.sleep(15)
             await msg.delete()
+        else:
+            await message.channel.send(contents)
+            
 
     async def cmd_unsubscribe(self, message):
         content_split = message.content.lower().split()
