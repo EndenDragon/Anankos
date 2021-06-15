@@ -14,6 +14,7 @@ from Anankos.dragalia_notification import DragaliaNotification
 import discord
 import aiosqlite
 import sqlite3
+from discord_slash import SlashCommand
 
 class Anankos(discord.Client):
     def __init__(self, config):
@@ -24,6 +25,7 @@ class Anankos(discord.Client):
         self.config = config
         self.db = None
         self.cmd_prefix = config.get("cmd_prefix", "!")
+        self.slash_command = SlashCommand(self)
         self.bad_words = BadWords(self, config.get("bad_words", []))
         self.pick_a_number = PickANumber(self, config.get("PaN_enabled", False), config.get("PaN_channel", 0), config.get("PaN_eventid", "default"), config.get("PaN_cooldown", 60))
         self.role_reaction = RoleReaction(self, config.get("role_reaction", {}), config.get("permanent_roles", {}))
@@ -78,3 +80,6 @@ class Anankos(discord.Client):
 
     async def on_message_delete(self, message):
         await self.image_embed.on_message_delete(message)
+
+    async def on_component(self, component):
+        await self.art_mention.on_component(component)

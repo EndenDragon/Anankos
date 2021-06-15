@@ -3,6 +3,8 @@ import discord
 import asyncio
 import re
 
+from discord_slash.utils.manage_components import create_actionrow, create_button, ButtonStyle
+
 class ArtMention:
     def __init__(self, client, image_channelids, base_role_id):
         self.client = client
@@ -111,12 +113,33 @@ class ArtMention:
             roles_to_mention.add(role)
             await self.bump_character(character)
         await self.remove_wait_emote(message)
-        #roles_to_mention = list(roles_to_mention)[:9]
+        roles_to_mention = list(roles_to_mention)[:5]
         if len(roles_to_mention):
             mentions = ""
+            button_list = []
             for role in roles_to_mention:
                 mentions = mentions + role.mention + " "
-            await message.reply(mentions, mention_author=False)
+                name = role.name[:-1 * len(" - Fanart Notification")]
+                button = create_button(style=ButtonStyle.blue, label=name, custom_id="art_mention {}".format(name), emoji="🔔")
+                button_list.append(button)
+            components = [create_actionrow(*button_list)]
+            await message.reply(mentions, mention_author=False, components=components)
+
+    async def on_component(self, component):
+        custom_id = component.custom_id.split()
+        if custom_id[0] != "art_mention":
+            return
+        character = custom_id[1]
+        author = component.author
+        existing = await self.get_all_user_subscriptions(author.id)
+        await component.defer(hidden=True)
+        message = ""
+        if character in existing:
+            message = "Already subscribed to **{}**.".format(character)
+        else:
+            await self.subscribe_user(author.id, character)
+            message = "Successfully subscribed to **{}**.".format(character)
+        await component.send(message, hidden=True)
 
     async def add_wait_emote(self, message):
         for reaction in message.reactions:
