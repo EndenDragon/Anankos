@@ -240,6 +240,10 @@ class ArtMention:
     async def cmd_subscribe(self, message):
         content_split = message.content.lower().split()
         if message.channel.id in self.image_channelids:
+            await message.add_reaction("❌")
+            no = await message.reply("❌ Command Banned ❌")
+            await asyncio.sleep(20)
+            await no.delete()
             return
         if len(content_split) == 1:
             await self.respond(message, "Please specify all the fanart notifications you would like to subscribe. Seperate multiple ones by a space.", "✅")
