@@ -233,11 +233,11 @@ class ArtMention:
         for character, users in subs.items():
             button_style = ButtonStyle.gray
             ratio = len(users) / max_users
-            if ratio > 0.3:
+            if ratio > 0.1:
                 button_style = ButtonStyle.blue
-            if ratio > 0.6:
+            if ratio > 0.25:
                 button_style = ButtonStyle.green
-            if ratio > 0.85:
+            if ratio > 0.55:
                 button_style = ButtonStyle.red
             button = create_button(style=button_style, label="{} ({})".format(character, len(users)), custom_id="art_mention {}".format(character))
             button_list.append(button)
