@@ -113,7 +113,7 @@ class ArtMention:
             roles_to_mention.add(role)
             await self.bump_character(character)
         await self.remove_wait_emote(message)
-        roles_to_mention = list(roles_to_mention)[:5]
+        roles_to_mention = list(roles_to_mention)[:25]
         if len(roles_to_mention):
             mentions = ""
             button_list = []
@@ -122,8 +122,16 @@ class ArtMention:
                 name = role.name[:-1 * len(" - Fanart Notification")]
                 button = create_button(style=ButtonStyle.blue, label=name, custom_id="art_mention {}".format(name), emoji="🔔")
                 button_list.append(button)
-            components = [create_actionrow(*button_list)]
+            components = []
+            button_list = list(self.divide_chunks(button_list, 5))
+            for chunk in button_list:
+                components.append(create_actionrow(*chunk))
             await message.reply(mentions, mention_author=False, components=components)
+
+    def divide_chunks(self, l, n): # https://www.geeksforgeeks.org/break-list-chunks-size-n-python/
+        # looping till length l
+        for i in range(0, len(l), n): 
+            yield l[i:i + n]
 
     async def on_component(self, component):
         custom_id = component.custom_id.split()
@@ -135,7 +143,8 @@ class ArtMention:
         await component.defer(hidden=True)
         message = ""
         if character in existing:
-            message = "❌ Already subscribed to **{}**.".format(character)
+            message = "Unsubscribed to **{}**.".format(character)
+            await self.unsubscribe_user(author.id, character)
         else:
             await self.subscribe_user(author.id, character)
             message = "✅ Successfully subscribed to **{} ({})**.".format(character, await self.get_sub_count(character))
