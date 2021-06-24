@@ -6,15 +6,18 @@ import re
 from discord_slash.utils.manage_components import create_actionrow, create_button, ButtonStyle
 
 class ArtMention:
-    def __init__(self, client, image_channelids, base_role_id):
+    def __init__(self, client, image_channelids, base_role_id, pingboard_channelid):
         self.client = client
         self.image_channelids = image_channelids
         self.base_role_id = base_role_id
+        self.pingboard_channelid = pingboard_channelid
         self.mention_last = {}
         self.cooldown = 2 * 60
         self.re_compiled = re.compile("^!!(?P<character>\w+)\W*$")
+        self.pingboard_uptodate = False
         
-        self.bg_task = self.client.loop.create_task(self.background_task())
+        self.bg_task_delete_roles = self.client.loop.create_task(self.background_task_delete_roles())
+        self.bg_task_update_pingboard = self.client.loop.create_task(self.background_task_update_pingboard())
 
     async def create_tables(self):
         await self.client.db.execute(
@@ -37,7 +40,7 @@ class ArtMention:
         )
         await self.client.db.commit()
 
-    async def background_task(self):
+    async def background_task_delete_roles(self):
         await self.client.wait_until_ready()
         while not self.client.is_closed():
             for guild in self.client.guilds:
@@ -50,6 +53,14 @@ class ArtMention:
                             except:
                                 pass
             await asyncio.sleep(43200) # 12 hours
+
+    async def background_task_update_pingboard(self):
+        await self.client.wait_until_ready()
+        while not self.client.is_closed():
+            if not self.pingboard_uptodate:
+                self.pingboard_uptodate = True
+                await self.update_pingboard()
+            await asyncio.sleep(60) # 1 minute
 
     async def role_expired(self, character):
         elapsed_last = await self.get_time_elapsed(character)
@@ -90,8 +101,6 @@ class ArtMention:
             await self.cmd_listsubs(message)
         elif message.content.startswith(self.client.cmd_prefix + "streak"):
             await self.cmd_streak(message)
-        elif message.content.startswith(self.client.cmd_prefix + "pingboard"):
-            await self.cmd_pingboard(message)
         if message.channel.id not in self.image_channelids:
             return
         content_split = message.content.lower().split()
@@ -229,7 +238,14 @@ class ArtMention:
         cool_str = cool_str.strip()
         return cool_str
 
-    async def cmd_pingboard(self, message):
+    async def update_pingboard(self):
+        channel = self.client.get_channel(self.pingboard_channelid)
+        if not channel:
+            return
+        existing_messages = []
+        async for message in channel.history(oldest_first=True):
+            if message.author == self.client.user:
+                existing_messages.append(message)
         button_list = []
         max_users = 0
         subs = await self.get_all_subscriptions()
@@ -248,11 +264,18 @@ class ArtMention:
             button_list.append(button)
         button_list = list(self.divide_chunks(button_list, 5))
         button_list = list(self.divide_chunks(button_list, 5))
+        chunk_id = 0
         for message_chunk in button_list:
             components = []
             for chunk in message_chunk:
                 components.append(create_actionrow(*chunk))
-            await message.channel.send("​", components=components)
+            if chunk_id < len(existing_messages):
+                await existing_messages[chunk_id].edit(components=components)
+            else:
+                await channel.send("​", components=components)
+            chunk_id = chunk_id + 1
+        for message in existing_messages[chunk_id:]:
+            await message.delete()
 
     async def cmd_streak(self, message):
         streaks = []
@@ -423,6 +446,7 @@ class ArtMention:
             (user_id, character)
         )
         await self.client.db.commit()
+        self.pingboard_uptodate = False
 
     async def unsubscribe_user(self, user_id, character):
         await self.client.db.execute(
@@ -430,6 +454,7 @@ class ArtMention:
             (user_id, character)
         )
         await self.client.db.commit()
+        self.pingboard_uptodate = False
 
     def get_cooldown_seconds(self, name):
         if name not in self.mention_last:
