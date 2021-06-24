@@ -12,7 +12,7 @@ class ArtMention:
         self.base_role_id = base_role_id
         self.mention_last = {}
         self.cooldown = 30 * 60
-        self.re_compiled = {}
+        self.re_compiled = re.compile("^!!(?P<character>\w+)\W*$")
         
         self.bg_task = self.client.loop.create_task(self.background_task())
 
@@ -96,14 +96,13 @@ class ArtMention:
             return
         content_split = message.content.lower().split()
         roles_to_mention = set()
-        for character, subscribed_users in (await self.get_all_subscriptions()).items():
-            character = character.lower()
-            compiled = self.re_compiled.get(character, None)
-            if compiled is None:
-                compiled = re.compile("^!!{}\W*$".format(character))
-                self.re_compiled[character] = compiled
-            matches_character = False
-            if not any(compiled.match(token) for token in content_split):
+        character_no_subs = set()
+        for content in content_split:
+            character = None
+            match = self.re_compiled.match(content)
+            if match:
+                character = match.group("character").lower()
+            else:
                 continue
             if self.get_cooldown_seconds(character) > 0:
                 continue
@@ -111,18 +110,23 @@ class ArtMention:
             await self.add_wait_emote(message)
             role = await self.get_role(character, message.guild)
             if not role:
+                character_no_subs.add(character)
                 continue
             roles_to_mention.add(role)
             await self.bump_character(character)
         await self.remove_wait_emote(message)
         roles_to_mention = list(roles_to_mention)[:25]
-        if len(roles_to_mention):
+        if len(roles_to_mention) or len(character_no_subs):
             mentions = ""
             button_list = []
             for role in roles_to_mention:
                 mentions = mentions + role.mention + " "
                 name = role.name[:-1 * len(" - Fanart Notification")]
                 button = create_button(style=ButtonStyle.blue, label=name, custom_id="art_mention {}".format(name), emoji="🔔")
+                button_list.append(button)
+            for character_name in character_no_subs:
+                mentions = mentions + "[@{}] ".format(character_name)
+                button = create_button(style=ButtonStyle.blue, label=character_name, custom_id="art_mention {}".format(character_name), emoji="🔔")
                 button_list.append(button)
             components = []
             button_list = list(self.divide_chunks(button_list, 5))
