@@ -116,6 +116,7 @@ class ArtMention:
             await self.bump_character(character)
         await self.remove_wait_emote(message)
         roles_to_mention = list(roles_to_mention)[:25]
+        character_no_subs = list(character_no_subs)[:25 - len(roles_to_mention)]
         if len(roles_to_mention) or len(character_no_subs):
             mentions = ""
             button_list = []
