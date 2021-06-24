@@ -11,7 +11,7 @@ class ArtMention:
         self.image_channelids = image_channelids
         self.base_role_id = base_role_id
         self.mention_last = {}
-        self.cooldown = 30 * 60
+        self.cooldown = 2 * 60
         self.re_compiled = re.compile("^!!(?P<character>\w+)\W*$")
         
         self.bg_task = self.client.loop.create_task(self.background_task())
