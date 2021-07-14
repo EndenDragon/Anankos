@@ -25,19 +25,36 @@ class ImageEmbed:
                                         access_token_secret=twitter_access_token_secret,
                                         tweet_mode="extended")
 
+    def should_spoiler(self, url, content):
+        url = re.escape(url)
+        match = re.search("\|\|\s*{}\s+\|\|".format(url), content)
+        if match:
+            return True
+        return False
+
+    async def get_rich_embed(self, url, message):
+        return await self.get_twitter_embed(url, message) or \
+            await self.get_deviantart_embed(url, message)
+
     async def on_message(self, message):
         if message.channel.id not in self.channel_ids or message.author == self.client.user:
             return
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
+        spoiler = []
         embeds = []
         for url in urls:
-            embeds.append(await self.get_twitter_embed(url, message))
-            embeds.append(await self.get_deviantart_embed(url, message))
-        embeds = [embed for embed in embeds if embed]
+            embed = await self.get_rich_embed(url, message)
+            if embed:
+                embeds.append(embed)
+                if self.should_spoiler(url, message.content):
+                    spoiler.append(embed)
         to_cache = {"msg": message, "embed_msgs": []}
         for embed in embeds[:4]:
-            em_msg = await message.channel.send(embed=embed)
+            if embed in spoiler:
+                em_msg = await message.channel.send("||https://corr.in/s ||", embed=embed)
+            else:
+                em_msg = await message.channel.send(embed=embed)
             to_cache["embed_msgs"].append(em_msg)
         if len(to_cache["embed_msgs"]):
             self.message_cache.append(to_cache)
