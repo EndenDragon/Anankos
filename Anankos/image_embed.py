@@ -5,6 +5,7 @@ from collections import deque
 import asyncio
 import aiohttp
 import twitter
+import datetime
 
 class ImageEmbed:
     def __init__(self, client, channel_ids, twitter_consumer_key, twitter_consumer_secret, twitter_access_token_key, twitter_access_token_secret):
@@ -13,9 +14,11 @@ class ImageEmbed:
         self.extractor = URLExtract()
         self.httpsession = aiohttp.ClientSession()
         self.message_cache = deque(maxlen=100)
+        self.forced_embeds = deque(maxlen=100)
 
         self.twitter_pattern = re.compile("twitter.com/\w+/status/(\d+)")
         self.deviantart_pattern = re.compile("deviantart\.com.*.\d")
+        self.pixiv_pattern = re.compile("www\.pixiv\.net\/en\/artworks\/(\d+)")
 
         self.deviantart_url = "https://backend.deviantart.com/oembed?url={}"
 
@@ -24,6 +27,11 @@ class ImageEmbed:
                                         access_token_key=twitter_access_token_key,
                                         access_token_secret=twitter_access_token_secret,
                                         tweet_mode="extended")
+        
+        self.pixiv_session_url = "https://api.pixiv.moe/session"
+        self.pixiv_url = "https://api.pixiv.moe/v2/illust/{}"
+        self.pixiv_session = None
+        self.pixiv_session_last_updated = None
 
     def should_spoiler(self, url, content):
         url = re.escape(url)
@@ -34,13 +42,18 @@ class ImageEmbed:
 
     async def get_rich_embed(self, url, message):
         return await self.get_twitter_embed(url, message) or \
-            await self.get_deviantart_embed(url, message)
+            await self.get_deviantart_embed(url, message) or \
+            await self.get_pixiv_embed(url, message)
 
     async def on_message(self, message):
         if message.channel.id not in self.channel_ids or message.author == self.client.user:
             return
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
+        if any(self.pixiv_pattern.search(line) for line in urls):
+            self.forced_embeds.append(message)
+            if len(message.embeds):
+                await message.edit(suppress=True)
         spoiler = []
         embeds = []
         for url in urls:
@@ -77,6 +90,9 @@ class ImageEmbed:
 
     async def on_message_edit(self, before, after):
         urls = []
+        if after in self.forced_embeds and len(after.embeds):
+            await after.edit(suppress=True)
+            return
         for embed in after.embeds:
             if embed.url:
                 url = embed.url
@@ -111,10 +127,11 @@ class ImageEmbed:
             return None
         if not hasattr(tweet_status, "media") or len(tweet_status.media) == 0:
             return None
-        for embed in message.embeds:
-            if embed.footer and embed.footer.text == "Twitter":
-                if url == embed.url:
-                    return None
+        if message not in self.forced_embeds:
+            for embed in message.embeds:
+                if embed.footer and embed.footer.text == "Twitter":
+                    if url == embed.url:
+                        return None
         embed = discord.Embed(
             description = tweet_status.full_text,
             color = 1942002,
@@ -136,10 +153,11 @@ class ImageEmbed:
         if not da_link:
             return None
         da_link = da_link[0]
-        for embed in message.embeds:
-            if embed.provider and embed.provider.name == "DeviantArt":
-                if da_link in embed.url:
-                    return None
+        if message not in self.forced_embeds:
+            for embed in message.embeds:
+                if embed.provider and embed.provider.name == "DeviantArt":
+                    if da_link in embed.url:
+                        return None
         async with self.httpsession.get(self.deviantart_url.format(da_link)) as resp:
             if resp.status < 200 or resp.status >= 300:
                 return None
@@ -154,3 +172,42 @@ class ImageEmbed:
             embed.set_image(url=result["url"])
             embed.set_author(name=result["author_name"], url=result["author_url"], icon_url="https://st.deviantart.net/eclipse/icons/android-192.png")
             return embed
+
+    async def get_pixiv_embed(self, url, message):
+        pixiv_link = self.pixiv_pattern.search(url)
+        if not pixiv_link:
+            return None
+        pixiv_id = int(pixiv_link.group(1))
+        pixiv = await self.fetch_pixiv(pixiv_id)
+        if not pixiv:
+            return None
+        pixiv = pixiv["illust"]
+        embed = discord.Embed(
+            description = pixiv.get("caption", None),
+            color = 12123135,
+            url = url,
+            title = pixiv.get("title", None)
+        )
+        embed.set_footer(text="Pixiv", icon_url="https://s.pximg.net/common/images/apple-touch-icon.png")
+        embed.set_image(url="https://api.pixiv.moe/image/{}".format(pixiv["image_urls"]["original"][8:]))
+        embed.set_author(
+            name="{}".format(pixiv["user"]["name"]),
+            url="https://www.pixiv.net/en/users/{}".format(pixiv["user"]["id"])
+        )
+        return embed
+
+    async def fetch_pixiv(self, pixiv_id):
+        now = datetime.datetime.now()
+        if not self.pixiv_session or self.pixiv_session_last_updated + datetime.timedelta(days=1) < now:
+            async with self.httpsession.get(self.pixiv_session_url) as resp:
+                if resp.status < 200 or resp.status >= 300:
+                    return None
+                result = await resp.json()
+                self.pixiv_session = result["response"]["access_token"]
+                self.pixiv_session_last_updated = now
+        async with self.httpsession.get(self.pixiv_url.format(pixiv_id), headers={"x-kotori-token": self.pixiv_session}) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                return None
+            result = await resp.json()
+            return result["response"]
+        return None
