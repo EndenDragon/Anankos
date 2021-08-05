@@ -46,8 +46,13 @@ class ImageEmbed:
             await self.get_pixiv_embed(url, message)
 
     async def on_message(self, message):
+        await self.post_image_embeds(message)
+
+    async def post_image_embeds(self, message, channel=None):
         if message.channel.id not in self.channel_ids or message.author == self.client.user:
             return
+        if not channel:
+            channel = message.channel
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
         if any(self.pixiv_pattern.search(line) for line in urls):
@@ -62,15 +67,26 @@ class ImageEmbed:
                 embeds.append(embed)
                 if self.should_spoiler(url, message.content):
                     spoiler.append(embed)
-        to_cache = {"msg": message, "embed_msgs": []}
+        to_cache = []
         for embed in embeds[:4]:
             if embed in spoiler:
-                em_msg = await message.channel.send("||https://corr.in/s ||", embed=embed)
+                em_msg = await channel.send("||https://corr.in/s ||", embed=embed)
             else:
-                em_msg = await message.channel.send(embed=embed)
-            to_cache["embed_msgs"].append(em_msg)
-        if len(to_cache["embed_msgs"]):
-            self.message_cache.append(to_cache)
+                em_msg = await channel.send(embed=embed)
+            to_cache.append(em_msg)
+        self.cache_message(message, to_cache)
+
+    def cache_message(self, message, embed_msgs):
+        chosen = None
+        for cache in self.message_cache:
+            if message == cache["msg"]:
+                chosen = cache
+                break
+        if not chosen:
+            chosen = {"msg": message, "embed_msgs": []}
+            self.message_cache.append(chosen)
+        for em in embed_msgs:
+            chosen["embed_msgs"].append(em)
 
     async def on_message_delete(self, message):
         if message.channel.id not in self.channel_ids or message.author == self.client.user:

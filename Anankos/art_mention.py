@@ -162,6 +162,7 @@ class ArtMention:
                 components.append(create_actionrow(*chunk))
             thread = await self.create_thread(message, ("art-" + "_".join(names))[:99])
             await thread.send(mentions, mention_author=False, components=components)
+            await self.client.image_embed.post_image_embeds(message, thread)
 
     def divide_chunks(self, l, n): # https://www.geeksforgeeks.org/break-list-chunks-size-n-python/
         # looping till length l
