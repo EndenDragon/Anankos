@@ -90,6 +90,21 @@ class ArtMention:
             await self.client.db.execute("UPDATE art_mention_timestamp SET timestamp = ? WHERE character = ?;", (time, character))
         await self.client.db.commit()
 
+    async def create_thread(self, message, name, auto_archive_duration=60):
+        channel = message.channel
+        data = await message.guild._state.http.request(
+            discord.http.Route(
+                "POST", 
+                "/channels/{channel_id}/messages/{message_id}/threads",
+                channel_id=channel.id, 
+                message_id=message.id
+            ),
+            json={"name": name, "auto_archive_duration": auto_archive_duration}
+        )
+        data["position"] = 100
+        channel = discord.TextChannel(state=message.guild._state, guild=message.guild, data=data)
+        return channel
+
     async def on_message(self, message):
         if message.author.id == self.client.user.id or len(message.content) == 0:
             return
@@ -129,20 +144,24 @@ class ArtMention:
         if len(roles_to_mention) or len(character_no_subs):
             mentions = ""
             button_list = []
+            names = []
             for role in roles_to_mention:
                 mentions = mentions + role.mention + " "
                 name = role.name[:-1 * len(" - Fanart Notification")]
                 button = create_button(style=ButtonStyle.blue, label=name, custom_id="art_mention {}".format(name), emoji="🔔")
                 button_list.append(button)
+                names.append(name)
             for character_name in character_no_subs:
                 mentions = mentions + "[@{}] ".format(character_name)
                 button = create_button(style=ButtonStyle.blue, label=character_name, custom_id="art_mention {}".format(character_name), emoji="🔔")
                 button_list.append(button)
+                names.append(character_name)
             components = []
             button_list = list(self.divide_chunks(button_list, 5))
             for chunk in button_list:
                 components.append(create_actionrow(*chunk))
-            await message.reply(mentions, mention_author=False, components=components)
+            thread = await self.create_thread(message, ("art-" + "_".join(names))[:99])
+            await thread.send(mentions, mention_author=False, components=components)
 
     def divide_chunks(self, l, n): # https://www.geeksforgeeks.org/break-list-chunks-size-n-python/
         # looping till length l
