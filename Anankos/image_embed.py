@@ -141,7 +141,7 @@ class ImageEmbed:
         tweet_status = self.twitterapi.GetStatus(twitter_id)
         if not tweet_status:
             return None
-        if not hasattr(tweet_status, "media") or len(tweet_status.media) == 0:
+        if not hasattr(tweet_status, "media") or not tweet_status.media or len(tweet_status.media) == 0:
             return None
         if message not in self.forced_embeds:
             for embed in message.embeds:

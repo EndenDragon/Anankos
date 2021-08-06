@@ -118,6 +118,9 @@ class ArtMention:
             await self.cmd_streak(message)
         if message.channel.id not in self.image_channelids:
             return
+        if "!!" not in message.content and "http" not in message.content and not message.author.bot:
+            await message.delete()
+            return
         content_split = message.content.lower().split()
         roles_to_mention = set()
         character_no_subs = set()
