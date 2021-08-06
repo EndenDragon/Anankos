@@ -90,7 +90,7 @@ class ArtMention:
             await self.client.db.execute("UPDATE art_mention_timestamp SET timestamp = ? WHERE character = ?;", (time, character))
         await self.client.db.commit()
 
-    async def create_thread(self, message, name, auto_archive_duration=60):
+    async def create_thread(self, message, name, auto_archive_duration=1440):
         channel = message.channel
         data = await message.guild._state.http.request(
             discord.http.Route(
