@@ -40,29 +40,29 @@ class ImageEmbed:
             return True
         return False
 
-    async def get_rich_embed(self, url, message):
-        return await self.get_twitter_embed(url, message) or \
-            await self.get_deviantart_embed(url, message) or \
-            await self.get_pixiv_embed(url, message)
+    async def get_rich_embed(self, url, message, force_ignore_embeds):
+        return await self.get_twitter_embed(url, message, force_ignore_embeds) or \
+            await self.get_deviantart_embed(url, message, force_ignore_embeds) or \
+            await self.get_pixiv_embed(url, message, force_ignore_embeds)
 
     async def on_message(self, message):
         await self.post_image_embeds(message)
 
-    async def post_image_embeds(self, message, channel=None):
+    async def post_image_embeds(self, message, channel=None, force_ignore_embeds=False):
         if message.channel.id not in self.channel_ids or message.author == self.client.user:
             return
         if not channel:
             channel = message.channel
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
-        if any(self.pixiv_pattern.search(line) for line in urls):
+        if any(self.pixiv_pattern.search(line) for line in urls) and not force_ignore_embeds:
             self.forced_embeds.append(message)
             if len(message.embeds):
                 await message.edit(suppress=True)
         spoiler = []
         embeds = []
         for url in urls:
-            embed = await self.get_rich_embed(url, message)
+            embed = await self.get_rich_embed(url, message, force_ignore_embeds)
             if embed:
                 embeds.append(embed)
                 if self.should_spoiler(url, message.content):
@@ -132,7 +132,7 @@ class ImageEmbed:
     def filter_link(self, url, message_content):
         return message_content.count("<" + url + ">") < message_content.count(url)
 
-    async def get_twitter_embed(self, url, message):
+    async def get_twitter_embed(self, url, message, force_ignore_embeds):
         url = url.replace("mobile.twitter.com", "twitter.com")
         twitter_id = self.twitter_pattern.search(url)
         if not twitter_id:
@@ -143,7 +143,7 @@ class ImageEmbed:
             return None
         if not hasattr(tweet_status, "media") or not tweet_status.media or len(tweet_status.media) == 0:
             return None
-        if message not in self.forced_embeds:
+        if message not in self.forced_embeds and not force_ignore_embeds:
             for embed in message.embeds:
                 if embed.footer and embed.footer.text == "Twitter":
                     if url == embed.url:
@@ -164,12 +164,12 @@ class ImageEmbed:
         embed.add_field(name="Likes", value=tweet_status.favorite_count, inline=True)
         return embed
     
-    async def get_deviantart_embed(self, url, message):
+    async def get_deviantart_embed(self, url, message, force_ignore_embeds):
         da_link = self.deviantart_pattern.search(url)
         if not da_link:
             return None
         da_link = da_link[0]
-        if message not in self.forced_embeds:
+        if message not in self.forced_embeds and not force_ignore_embeds:
             for embed in message.embeds:
                 if embed.provider and embed.provider.name == "DeviantArt":
                     if da_link in embed.url:
@@ -189,7 +189,7 @@ class ImageEmbed:
             embed.set_author(name=result["author_name"], url=result["author_url"], icon_url="https://st.deviantart.net/eclipse/icons/android-192.png")
             return embed
 
-    async def get_pixiv_embed(self, url, message):
+    async def get_pixiv_embed(self, url, message, force_ignore_embeds):
         pixiv_link = self.pixiv_pattern.search(url)
         if not pixiv_link:
             return None

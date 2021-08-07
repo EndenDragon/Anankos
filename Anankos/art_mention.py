@@ -118,7 +118,7 @@ class ArtMention:
             await self.cmd_streak(message)
         if message.channel.id not in self.image_channelids:
             return
-        if "!!" not in message.content and "http" not in message.content and not message.author.bot:
+        if "!!" not in message.content and "http" not in message.content and not message.author.bot and len(message.attachments) == 0:
             await message.delete()
             return
         content_split = message.content.lower().split()
@@ -166,8 +166,9 @@ class ArtMention:
             thread = await self.create_thread(message, ("art-" + "_".join(names))[:99])
             await thread.send(mentions, mention_author=False, components=components)
             await self.client.image_embed.post_image_embeds(message, thread)
-            if message.reference and message.reference.cached_message:
-                await self.client.image_embed.post_image_embeds(message.reference.cached_message, thread)
+            if message.reference and message.reference.message_id:
+                reference = await message.channel.fetch_message(message.reference.message_id)
+                await self.client.image_embed.post_image_embeds(reference, thread, True)
 
     def divide_chunks(self, l, n): # https://www.geeksforgeeks.org/break-list-chunks-size-n-python/
         # looping till length l
