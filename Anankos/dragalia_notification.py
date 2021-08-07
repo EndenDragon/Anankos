@@ -14,6 +14,13 @@ class DragaliaNotification:
 
     async def background_task(self):
         await self.client.wait_until_ready()
+        utc = datetime.datetime.utcnow()
+        wait = 0
+        if utc.second > 5:
+            wait = 60 - utc.second + 5
+        else:
+            wait = 5 - utc.second
+        await asyncio.sleep(wait)
         while not self.client.is_closed():
             utc = datetime.datetime.utcnow()
             if utc.hour == 6 and utc.minute == 0:
