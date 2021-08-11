@@ -205,7 +205,11 @@ class ImageEmbed:
             title = pixiv.get("title", None)
         )
         embed.set_footer(text="Pixiv", icon_url="https://s.pximg.net/common/images/apple-touch-icon.png")
-        embed.set_image(url="https://api.pixiv.moe/image/{}".format(pixiv["image_urls"]["original"][8:]))
+        if re.search("^https?:\/\/(i\.pximg\.net)|(source\.pixiv\.net)", pixiv["image_urls"]["large"], flags=re.IGNORECASE):
+            image = "https://api.pixiv.moe/image/" + re.sub("^https?:\/\/", "", pixiv["image_urls"]["large"])
+        else:
+            image = pixiv["image_urls"]["large"]
+        embed.set_image(url=image)
         embed.set_author(
             name="{}".format(pixiv["user"]["name"]),
             url="https://www.pixiv.net/en/users/{}".format(pixiv["user"]["id"])
