@@ -114,7 +114,7 @@ class DragaliaNotification:
                 and ("double" in name or "half" in name or "triple" in name):
             return True
         # dominion
-        if ("dominion" in name or "lilith" in name or "jalda" in name or "asura" in name) \
+        if ("dominion" in name or "lilith" in name or "jalda" in name or "asura" in name or "iblis" in name) \
                 and ("double" in name or "half" in name or "triple" in name):
             return True
         # campaign
