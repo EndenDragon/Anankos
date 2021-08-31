@@ -10,6 +10,7 @@ from Anankos.mass_corrin_ping import MassCorrinPing
 from Anankos.art_mention import ArtMention
 from Anankos.nitro_emote import NitroEmote
 from Anankos.dragalia_notification import DragaliaNotification
+from Anankos.activities import Activities
 
 import discord
 import aiosqlite
@@ -38,6 +39,7 @@ class Anankos(discord.Client):
         self.art_mention = ArtMention(self, config.get("image_channelids", []), config.get("artmention_base_role_id", 0), config.get("artmention_pingboard_channelid", 0))
         self.nitro_emote = NitroEmote(self)
         self.dragalia_notification = DragaliaNotification(self, config.get("dragalianotif_channelid"), config.get("dragalianotif_roleid"))
+        self.activities = Activities(self, config.get("activities_channelid"))
 
     async def on_connect(self):
         if self.db is None:
@@ -63,6 +65,7 @@ class Anankos(discord.Client):
         self.loop.create_task(self.art_mention.on_message(message))
         self.loop.create_task(self.image_embed.on_message(message))
         self.loop.create_task(self.nitro_emote.on_message(message))
+        self.loop.create_task(self.activities.on_message(message))
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)

@@ -61,4 +61,7 @@ CONFIG = {
     # Dragalia Notification (dragalianotif)
     "dragalianotif_channelid": 705831040434044978,
     "dragalianotif_roleid": 850314118195052584,
+
+    # Activities
+    "activities_channelid": 606555341890650142,
 }
