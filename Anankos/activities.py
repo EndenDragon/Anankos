@@ -30,6 +30,8 @@ class Activities:
 
     async def on_message(self, message):
         content = message.content.lower().split()
+        if not content:
+            return
         if content[0] != "!activity":
             return
         if len(content) < 2:

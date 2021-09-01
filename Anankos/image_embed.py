@@ -6,6 +6,7 @@ import asyncio
 import aiohttp
 import twitter
 import datetime
+import io
 
 class ImageEmbed:
     def __init__(self, client, channel_ids, twitter_consumer_key, twitter_consumer_secret, twitter_access_token_key, twitter_access_token_secret):
@@ -62,17 +63,20 @@ class ImageEmbed:
         spoiler = []
         embeds = []
         for url in urls:
-            embed = await self.get_rich_embed(url, message, force_ignore_embeds)
+            rich_embed =  await self.get_rich_embed(url, message, force_ignore_embeds)
+            if not rich_embed:
+                continue
+            embed, attachment = rich_embed
             if embed:
-                embeds.append(embed)
+                embeds.append((embed, attachment))
                 if self.should_spoiler(url, message.content):
                     spoiler.append(embed)
         to_cache = []
-        for embed in embeds[:4]:
+        for embed, attachment in embeds[:4]:
             if embed in spoiler:
-                em_msg = await channel.send("||https://corr.in/s ||", embed=embed)
+                em_msg = await channel.send("||https://corr.in/s ||", embed=embed, files=attachment)
             else:
-                em_msg = await channel.send(embed=embed)
+                em_msg = await channel.send(embed=embed, file=attachment)
             to_cache.append(em_msg)
         self.cache_message(message, to_cache)
 
@@ -162,7 +166,7 @@ class ImageEmbed:
         )
         embed.add_field(name="Retweets", value=tweet_status.retweet_count, inline=True)
         embed.add_field(name="Likes", value=tweet_status.favorite_count, inline=True)
-        return embed
+        return embed, None
     
     async def get_deviantart_embed(self, url, message, force_ignore_embeds):
         da_link = self.deviantart_pattern.search(url)
@@ -187,7 +191,7 @@ class ImageEmbed:
             )
             embed.set_image(url=result["url"])
             embed.set_author(name=result["author_name"], url=result["author_url"], icon_url="https://st.deviantart.net/eclipse/icons/android-192.png")
-            return embed
+            return embed, None
 
     async def get_pixiv_embed(self, url, message, force_ignore_embeds):
         pixiv_link = self.pixiv_pattern.search(url)
@@ -209,12 +213,19 @@ class ImageEmbed:
             image = "https://api.pixiv.moe/image/" + re.sub("^https?:\/\/", "", pixiv["image_urls"]["large"])
         else:
             image = pixiv["image_urls"]["large"]
-        embed.set_image(url=image)
+        file_object = None
+        file_extension = image.split(".")[-1]
+        file_name = "image.{}".format(file_extension)
+        async with self.httpsession.get(image) as resp:
+            file_object = io.BytesIO(await resp.read())
+            file_object.seek(0)
+        discord_file = discord.File(file_object, file_name)
+        embed.set_image(url="attachment://{}".format(file_name))
         embed.set_author(
             name="{}".format(pixiv["user"]["name"]),
             url="https://www.pixiv.net/en/users/{}".format(pixiv["user"]["id"])
         )
-        return embed
+        return embed, discord_file
 
     async def fetch_pixiv(self, pixiv_id):
         now = datetime.datetime.now()
