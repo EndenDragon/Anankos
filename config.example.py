@@ -39,6 +39,7 @@ CONFIG = {
     # Art Mention
     "artmention_base_role_id": 793711429597134908,
     "artmention_pingboard_channelid": 825960862350704652,
+    "artmention_thread_channelids": [703718904576475198, 608659392958824461],
 
     "permanent_roles": {
         602633229614448640: [635378577831100466],

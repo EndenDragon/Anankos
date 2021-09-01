@@ -36,7 +36,7 @@ class Anankos(discord.Client):
         self.reddit_publish = RedditPublish(self, config.get("redditpub_source_chan_id"), config.get("redditpub_dest_chan_id"))
         self.looking_for_smash = LookingForSmash(self, config.get("lfs_channelid"), config.get("lfs_roleid"))
         self.mass_corrin_ping = MassCorrinPing(self)
-        self.art_mention = ArtMention(self, config.get("image_channelids", []), config.get("artmention_base_role_id", 0), config.get("artmention_pingboard_channelid", 0))
+        self.art_mention = ArtMention(self, config.get("image_channelids", []), config.get("artmention_thread_channelids", []), config.get("artmention_base_role_id", 0), config.get("artmention_pingboard_channelid", 0))
         self.nitro_emote = NitroEmote(self)
         self.dragalia_notification = DragaliaNotification(self, config.get("dragalianotif_channelid"), config.get("dragalianotif_roleid"))
         self.activities = Activities(self, config.get("activities_channelid"))

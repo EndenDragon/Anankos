@@ -6,9 +6,10 @@ import re
 from discord_slash.utils.manage_components import create_actionrow, create_button, ButtonStyle
 
 class ArtMention:
-    def __init__(self, client, image_channelids, base_role_id, pingboard_channelid):
+    def __init__(self, client, image_channelids, thread_channelids, base_role_id, pingboard_channelid):
         self.client = client
         self.image_channelids = image_channelids
+        self.thread_channelids = thread_channelids
         self.base_role_id = base_role_id
         self.pingboard_channelid = pingboard_channelid
         self.mention_last = {}
@@ -118,7 +119,7 @@ class ArtMention:
             await self.cmd_streak(message)
         if message.channel.id not in self.image_channelids:
             return
-        if "!!" not in message.content and "http" not in message.content and not message.author.bot and len(message.attachments) == 0:
+        if message.channel.id in self.thread_channelids and "!!" not in message.content and "http" not in message.content and not message.author.bot and len(message.attachments) == 0:
             await message.delete()
             return
         content_split = message.content.lower().split()
@@ -163,12 +164,15 @@ class ArtMention:
             button_list = list(self.divide_chunks(button_list, 5))
             for chunk in button_list:
                 components.append(create_actionrow(*chunk))
-            thread = await self.create_thread(message, ("art-" + "_".join(names))[:99])
-            await thread.send(mentions, mention_author=False, components=components)
-            await self.client.image_embed.post_image_embeds(message, thread)
-            if message.reference and message.reference.message_id:
-                reference = await message.channel.fetch_message(message.reference.message_id)
-                await self.client.image_embed.post_image_embeds(reference, thread, True)
+            channel = message.channel
+            if message.channel.id in self.thread_channelids:
+                channel = await self.create_thread(message, ("art-" + "_".join(names))[:99])
+            await channel.send(mentions, mention_author=False, components=components)
+            if message.channel.id in self.thread_channelids:
+                await self.client.image_embed.post_image_embeds(message, channel)
+                if message.reference and message.reference.message_id:
+                    reference = await message.channel.fetch_message(message.reference.message_id)
+                    await self.client.image_embed.post_image_embeds(reference, channel, True)
 
     def divide_chunks(self, l, n): # https://www.geeksforgeeks.org/break-list-chunks-size-n-python/
         # looping till length l
