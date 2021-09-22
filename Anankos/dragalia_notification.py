@@ -129,4 +129,7 @@ class DragaliaNotification:
         # void
         if "void" in name and ("double" in name or "half" in name or "triple" in name):
             return True
+        # Dragalia Digest
+        if "dragalia" in name and "digest" in name:
+            return True
         return False
