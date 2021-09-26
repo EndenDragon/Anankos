@@ -132,7 +132,7 @@ class ArtMention:
                 character = match.group("character").lower()
             else:
                 continue
-            if self.get_cooldown_seconds(character) > 0:
+            if self.get_cooldown_seconds(character) > 0 and not message.author.permissions_in(message.channel).manage_messages:
                 continue
             self.mention_last[character] = datetime.datetime.now()
             await self.add_wait_emote(message)
