@@ -229,14 +229,20 @@ class ImageEmbed:
 
     async def fetch_pixiv(self, pixiv_id):
         now = datetime.datetime.now()
-        if not self.pixiv_session or self.pixiv_session_last_updated + datetime.timedelta(days=1) < now:
-            async with self.httpsession.get(self.pixiv_session_url) as resp:
+        headers = {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
+            "accept-language": "en-US,en;q=0.9",
+        }
+        if not self.pixiv_session or self.pixiv_session_last_updated + datetime.timedelta(minutes=1) < now:
+            async with self.httpsession.get(self.pixiv_session_url, headers=headers) as resp:
                 if resp.status < 200 or resp.status >= 300:
                     return None
                 result = await resp.json()
                 self.pixiv_session = result["response"]["access_token"]
                 self.pixiv_session_last_updated = now
-        async with self.httpsession.get(self.pixiv_url.format(pixiv_id), headers={"x-kotori-token": self.pixiv_session}) as resp:
+        headers["x-kotori-token"] = self.pixiv_session
+        async with self.httpsession.get(self.pixiv_url.format(pixiv_id), headers=headers) as resp:
+            print(await resp.text(), headers)
             if resp.status < 200 or resp.status >= 300:
                 return None
             result = await resp.json()
