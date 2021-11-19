@@ -25,11 +25,14 @@ class RedditPublish:
         await self.client.wait_until_ready()
         subreddit = await self.reddit.subreddit("CorrinConclave")
         async for submission in subreddit.stream.submissions(skip_existing=True):
-            permalink = "https://reddit.com" + submission.permalink
-            embed = await self.get_rich_embed(permalink)
-            if embed:
-                channel = self.client.get_channel(self.source_chan_id)
-                await channel.send(embed=embed)
+            try:
+                permalink = "https://reddit.com" + submission.permalink
+                embed = await self.get_rich_embed(permalink)
+                if embed:
+                    channel = self.client.get_channel(self.source_chan_id)
+                    await channel.send(embed=embed)
+            except Exception as e:
+                print(e)
 
     async def on_message(self, message):
         if message.channel.id != self.source_chan_id:
