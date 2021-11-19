@@ -242,7 +242,6 @@ class ImageEmbed:
                 self.pixiv_session_last_updated = now
         headers["x-kotori-token"] = self.pixiv_session
         async with self.httpsession.get(self.pixiv_url.format(pixiv_id), headers=headers) as resp:
-            print(await resp.text(), headers)
             if resp.status < 200 or resp.status >= 300:
                 return None
             result = await resp.json()
