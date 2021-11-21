@@ -11,6 +11,7 @@ from Anankos.art_mention import ArtMention
 from Anankos.nitro_emote import NitroEmote
 from Anankos.dragalia_notification import DragaliaNotification
 from Anankos.activities import Activities
+from Anankos.priconne_notification import PriconneNotification
 
 import discord
 import aiosqlite
@@ -40,6 +41,7 @@ class Anankos(discord.Client):
         self.nitro_emote = NitroEmote(self)
         self.dragalia_notification = DragaliaNotification(self, config.get("dragalianotif_channelid"), config.get("dragalianotif_roleid"))
         self.activities = Activities(self, config.get("activities_channelid"))
+        self.priconne_notification = PriconneNotification(self, config.get("priconnenotif_channelid"))
 
     async def on_connect(self):
         if self.db is None:

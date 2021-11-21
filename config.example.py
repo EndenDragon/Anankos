@@ -65,6 +65,9 @@ CONFIG = {
     "dragalianotif_channelid": 705831040434044978,
     "dragalianotif_roleid": 850314118195052584,
 
+    # Priconne Notification (priconnenotif)
+    "priconnenotif_channelid": 801223891519406130,
+
     # Activities
     "activities_channelid": 606555341890650142,
 }

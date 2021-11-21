@@ -5,3 +5,4 @@ python-twitter
 Unidecode
 git+https://github.com/discord-py-slash-commands/discord-py-slash-command.git@components
 asyncpraw
+pycrypto
