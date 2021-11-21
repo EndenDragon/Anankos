@@ -166,10 +166,10 @@ class PriconneNotification:
             wait = 60 - utc.second + 5
         else:
             wait = 5 - utc.second
-        #await asyncio.sleep(wait)
+        await asyncio.sleep(wait)
         while not self.client.is_closed():
             utc = datetime.datetime.utcnow()
-            if True or utc.hour == 13 and utc.minute == 0:
+            if utc.hour == 13 and utc.minute == 0:
                 await self.run_reminders()
                 await asyncio.sleep(120)
             await asyncio.sleep(30)
