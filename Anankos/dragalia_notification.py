@@ -110,6 +110,7 @@ class DragaliaNotification:
             secondary_events_output = "\n__Other Events (starts today):__"
             for event in secondary_events:
                 name = html.unescape(event["title"]["Name"])
+                start_date = event["title"].get("StartDate", None)
                 if not self.include_secondary_event(name):
                     continue
                 secondary_should_post = True
@@ -118,6 +119,9 @@ class DragaliaNotification:
                     essences = self.get_campaign_essence(name)
                     if essences:
                         secondary_events_output = secondary_events_output + " (Essence: {})".format(", ".join(essences))
+                start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S')
+                if start_date and start_date.hour != 6:
+                    secondary_events_output = secondary_events_output + " <t:{}:R>".format(int(start_date.replace(tzinfo=datetime.timezone.utc).timestamp()))
             secondary_events_output = secondary_events_output + "\n"
             if secondary_should_post:
                 output = output + secondary_events_output
