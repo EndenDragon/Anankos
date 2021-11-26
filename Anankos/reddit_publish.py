@@ -2,37 +2,41 @@ from urlextract import URLExtract
 import aiohttp
 import html
 import discord
-import asyncpraw
 
 class RedditPublish:
-    def __init__(self, client, source_chan_id, dest_chan_id, client_id, client_secret):
+    def __init__(self, client, source_chan_id, dest_chan_id):
         self.client = client
         self.source_chan_id = source_chan_id
         self.dest_chan_id = dest_chan_id
-        self.client_id = client_id
-        self.client_secret = client_secret
         self.extractor = URLExtract()
         self.httpsession = aiohttp.ClientSession()
-        self.reddit = asyncpraw.Reddit(
-            client_id=client_id,
-            client_secret=client_secret,
-            user_agent="Anankos Discord Bot for Corrin Conclave Community https://github.com/EndenDragon/Anankos",
-        )
 
         self.bg_task = self.client.loop.create_task(self.background_task())
 
     async def background_task(self):
         await self.client.wait_until_ready()
-        subreddit = await self.reddit.subreddit("CorrinConclave")
-        async for submission in subreddit.stream.submissions(skip_existing=True):
-            try:
-                permalink = "https://reddit.com" + submission.permalink
-                embed = await self.get_rich_embed(permalink)
-                if embed:
-                    channel = self.client.get_channel(self.source_chan_id)
-                    await channel.send(embed=embed)
-            except Exception as e:
-                print(e)
+        last_id = None
+        while not self.client.is_closed():
+            async with self.httpsession.get("https://www.reddit.com/r/CorrinConclave/new.json") as resp:
+                if resp.status < 200 or resp.status >= 300:
+                    continue
+                result = await resp.json()
+                posts = result["data"]["children"]
+                first_id = posts[0]["id"]
+                if not last_id:
+                    last_id = first_id
+                for post in posts:
+                    data = post["data"]
+                    post_id = data["id"]
+                    if post_id == last_id:
+                        last_id = first_id
+                        break
+                    permalink = "https://reddit.com" + data["permalink"]
+                    embed = await self.get_rich_embed(permalink)
+                    if embed:
+                        channel = self.client.get_channel(self.source_chan_id)
+                        await channel.send(embed=embed)
+            await asyncio.sleep(120)
 
     async def on_message(self, message):
         if message.channel.id != self.source_chan_id:

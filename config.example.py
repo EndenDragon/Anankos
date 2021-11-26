@@ -31,8 +31,6 @@ CONFIG = {
     # Reddit Publish
     "redditpub_source_chan_id": 754577585370955886,
     "redditpub_dest_chan_id": 605096043868192778,
-    "redditpub_clientid": "key",
-    "redditpub_clientsecret": "key",
 
     # Looking For Smash (LFS)
     "lfs_channelid": 605798581793718276,
