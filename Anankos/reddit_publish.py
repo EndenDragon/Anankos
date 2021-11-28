@@ -2,6 +2,7 @@ from urlextract import URLExtract
 import aiohttp
 import html
 import discord
+import asyncio
 
 class RedditPublish:
     def __init__(self, client, source_chan_id, dest_chan_id):
@@ -21,7 +22,10 @@ class RedditPublish:
                 if resp.status >= 200 and resp.status < 300:
                     result = await resp.json()
                     posts = result["data"]["children"]
-                    first_id = posts[0]["id"]
+                    if not len(posts):
+                        await asyncio.sleep(120)
+                        continue
+                    first_id = posts[0]["data"]["id"]
                     if not last_id:
                         last_id = first_id
                     for post in posts:

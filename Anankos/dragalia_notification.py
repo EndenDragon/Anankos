@@ -34,11 +34,10 @@ class DragaliaNotification:
             wait = 60 - utc.second + 5
         else:
             wait = 5 - utc.second
-        wait = 0
         await asyncio.sleep(wait)
         while not self.client.is_closed():
             utc = datetime.datetime.utcnow()
-            if True or utc.hour == 6 and utc.minute == 0:
+            if utc.hour == 6 and utc.minute == 0:
                 await self.run_reminders()
                 await asyncio.sleep(120)
             await asyncio.sleep(30)
