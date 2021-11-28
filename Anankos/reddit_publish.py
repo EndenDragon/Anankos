@@ -18,24 +18,23 @@ class RedditPublish:
         last_id = None
         while not self.client.is_closed():
             async with self.httpsession.get("https://www.reddit.com/r/CorrinConclave/new.json") as resp:
-                if resp.status < 200 or resp.status >= 300:
-                    continue
-                result = await resp.json()
-                posts = result["data"]["children"]
-                first_id = posts[0]["id"]
-                if not last_id:
-                    last_id = first_id
-                for post in posts:
-                    data = post["data"]
-                    post_id = data["id"]
-                    if post_id == last_id:
+                if resp.status >= 200 and resp.status < 300:
+                    result = await resp.json()
+                    posts = result["data"]["children"]
+                    first_id = posts[0]["id"]
+                    if not last_id:
                         last_id = first_id
-                        break
-                    permalink = "https://reddit.com" + data["permalink"]
-                    embed = await self.get_rich_embed(permalink)
-                    if embed:
-                        channel = self.client.get_channel(self.source_chan_id)
-                        await channel.send(embed=embed)
+                    for post in posts:
+                        data = post["data"]
+                        post_id = data["id"]
+                        if post_id == last_id:
+                            last_id = first_id
+                            break
+                        permalink = "https://reddit.com" + data["permalink"]
+                        embed = await self.get_rich_embed(permalink)
+                        if embed:
+                            channel = self.client.get_channel(self.source_chan_id)
+                            await channel.send(embed=embed)
             await asyncio.sleep(120)
 
     async def on_message(self, message):
