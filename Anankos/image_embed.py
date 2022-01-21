@@ -30,9 +30,7 @@ class ImageEmbed:
                                         tweet_mode="extended")
         
         self.pixiv_session_url = "https://api.pixiv.moe/session"
-        self.pixiv_url = "https://api.pixiv.moe/v2/illust/{}"
-        self.pixiv_session = None
-        self.pixiv_session_last_updated = None
+        self.pixiv_url = "https://www.pixiv.net/ajax/illust/{}?lang=en"
 
     def should_spoiler(self, url, content):
         url = re.escape(url)
@@ -201,29 +199,30 @@ class ImageEmbed:
         pixiv = await self.fetch_pixiv(pixiv_id)
         if not pixiv:
             return None
-        pixiv = pixiv["illust"]
         embed = discord.Embed(
-            description = pixiv.get("caption", None),
+            description = pixiv.get("description", None),
             color = 12123135,
             url = url,
             title = pixiv.get("title", None)
         )
         embed.set_footer(text="Pixiv", icon_url="https://s.pximg.net/common/images/apple-touch-icon.png")
-        if re.search("^https?:\/\/(i\.pximg\.net)|(source\.pixiv\.net)", pixiv["image_urls"]["large"], flags=re.IGNORECASE):
-            image = "https://api.pixiv.moe/image/" + re.sub("^https?:\/\/", "", pixiv["image_urls"]["large"])
-        else:
-            image = pixiv["image_urls"]["large"]
+        image = pixiv["urls"]["regular"]
         file_object = None
         file_extension = image.split(".")[-1]
         file_name = "image.{}".format(file_extension)
-        async with self.httpsession.get(image) as resp:
+        headers = {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
+            "accept-language": "en-US,en;q=0.9",
+            "referer": "https://www.pixiv.net/"
+        }
+        async with self.httpsession.get(image, headers=headers) as resp:
             file_object = io.BytesIO(await resp.read())
             file_object.seek(0)
         discord_file = discord.File(file_object, file_name)
         embed.set_image(url="attachment://{}".format(file_name))
         embed.set_author(
-            name="{}".format(pixiv["user"]["name"]),
-            url="https://www.pixiv.net/en/users/{}".format(pixiv["user"]["id"])
+            name="{}".format(pixiv["userName"]),
+            url="https://www.pixiv.net/en/users/{}".format(pixiv["userId"])
         )
         return embed, discord_file
 
@@ -232,18 +231,11 @@ class ImageEmbed:
         headers = {
             "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
             "accept-language": "en-US,en;q=0.9",
+            "referer": "https://www.pixiv.net/en/artworks/{}".format(pixiv_id)
         }
-        if not self.pixiv_session or self.pixiv_session_last_updated + datetime.timedelta(minutes=1) < now:
-            async with self.httpsession.get(self.pixiv_session_url, headers=headers) as resp:
-                if resp.status < 200 or resp.status >= 300:
-                    return None
-                result = await resp.json()
-                self.pixiv_session = result["response"]["access_token"]
-                self.pixiv_session_last_updated = now
-        headers["authorization"] = "Uid " + self.pixiv_session
         async with self.httpsession.get(self.pixiv_url.format(pixiv_id), headers=headers) as resp:
             if resp.status < 200 or resp.status >= 300:
                 return None
             result = await resp.json()
-            return result["response"]
+            return result["body"]
         return None
