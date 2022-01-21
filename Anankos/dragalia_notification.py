@@ -139,17 +139,6 @@ class DragaliaNotification:
             if secondary_should_post:
                 output = output + secondary_events_output
                 should_post = True
-        if self.should_announce_abr():
-            should_post = True
-            now = datetime.datetime.utcnow()
-            reset = (now.replace(day=1) + datetime.timedelta(days=32)).replace(day=1, hour=5, minute=59, second=59, microsecond=0, tzinfo=datetime.timezone.utc) - datetime.timedelta(days=1)
-            output = output + "\n__Alberian Battle Royale (open today):__"
-            closing = reset
-            while closing.weekday() not in [2, 3, 6]:
-                closing = closing - datetime.timedelta(days=1)
-            closing = closing + datetime.timedelta(days=1)
-            output = output + "\nLast ABR opportunity <t:{}:R>".format(int(closing.timestamp()))
-            output = output + "\nTreasure Trade Resets <t:{}:R>".format(int(reset.timestamp()))
         if should_post:
             channel = self.client.get_channel(self.channel_id)
             webhooks = await channel.webhooks()
@@ -202,15 +191,3 @@ class DragaliaNotification:
             if chapter in self.essence_list:
                 dragons.extend(self.essence_list[chapter])
         return sorted(dragons)
-
-    def should_announce_abr(self):
-        now = datetime.datetime.utcnow()
-        month = (now - datetime.timedelta(hours=6)).month
-        day = (now - datetime.timedelta(hours=6)).day
-        if (now + datetime.timedelta(hours=18)).day != 1 \
-            and (day >= 25 \
-                or (day >= 24 \
-                    and (month == 11 or month == 4 or month == 6 or month == 9)) \
-            or (day >= 22 and month == 2)):
-            return now.weekday() in [2, 3, 6]
-        return False
