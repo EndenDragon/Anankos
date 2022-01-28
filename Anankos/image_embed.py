@@ -16,6 +16,9 @@ class ImageEmbed:
         self.httpsession = aiohttp.ClientSession()
         self.message_cache = deque(maxlen=100)
         self.forced_embeds = deque(maxlen=100)
+        self.ready = asyncio.Event()
+
+        self.ready.set()
 
         self.twitter_pattern = re.compile("twitter.com/\w+/status/(\d+)")
         self.deviantart_pattern = re.compile("deviantart\.com.*.\d")
@@ -52,6 +55,7 @@ class ImageEmbed:
             return
         if not channel:
             channel = message.channel
+        self.ready.clear()
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
         if any(self.pixiv_pattern.search(line) for line in urls) and not force_ignore_embeds:
@@ -77,6 +81,7 @@ class ImageEmbed:
                 em_msg = await channel.send(embed=embed, file=attachment)
             to_cache.append(em_msg)
         self.cache_message(message, to_cache)
+        self.ready.set()
 
     def cache_message(self, message, embed_msgs):
         chosen = None
@@ -93,6 +98,7 @@ class ImageEmbed:
     async def on_message_delete(self, message):
         if message.channel.id not in self.channel_ids or message.author == self.client.user:
             return
+        await self.ready.wait()
         chosen = None
         for cache in self.message_cache:
             if message == cache["msg"]:
@@ -116,7 +122,7 @@ class ImageEmbed:
                 url = embed.url
                 url = url.replace("mobile.twitter.com", "twitter.com")
                 urls.append(url)
-        await asyncio.sleep(0.5)
+        await self.ready.wait()
         chosen = None
         for cache in self.message_cache:
             if after == cache["msg"]:
