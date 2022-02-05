@@ -12,6 +12,7 @@ from Anankos.nitro_emote import NitroEmote
 from Anankos.dragalia_notification import DragaliaNotification
 from Anankos.activities import Activities
 from Anankos.priconne_notification import PriconneNotification
+from Anankos.automod import AutoMod
 
 import discord
 import aiosqlite
@@ -42,6 +43,7 @@ class Anankos(discord.Client):
         self.dragalia_notification = DragaliaNotification(self, config.get("dragalianotif_channelid"), config.get("dragalianotif_roleid"))
         self.activities = Activities(self, config.get("activities_channelid"))
         self.priconne_notification = PriconneNotification(self, config.get("priconnenotif_channelid"))
+        self.automod = AutoMod(self)
 
     async def on_connect(self):
         if self.db is None:
@@ -68,6 +70,7 @@ class Anankos(discord.Client):
         self.loop.create_task(self.image_embed.on_message(message))
         self.loop.create_task(self.nitro_emote.on_message(message))
         self.loop.create_task(self.activities.on_message(message))
+        self.loop.create_task(self.automod.on_message(message))
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)
