@@ -8,9 +8,15 @@ class Activities:
         self.activity_options = {
             "poker": 755827207812677713,
             "betrayal": 773336526917861400,
-            "youtube": 755600276941176913,
+            "youtube": 880218394199220334,
             "fishington": 814288819477020702,
             "chess": 832012774040141894,
+            "checkers": 832013003968348200,
+            "letter": 879863686565621790,
+            "word": 879863976006127627,
+            "doodle": 878067389634314250,
+            "spellcast": 852509694341283871,
+            "spellcast2": 893449443918086174,
         }
 
     async def create_embedded_invite(self, channel, target_application_id):
