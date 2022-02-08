@@ -14,9 +14,11 @@ class Activities:
             "checkers": 832013003968348200,
             "letter": 879863686565621790,
             "word": 879863976006127627,
-            "doodle": 878067389634314250,
+            "sketchheads": 902271654783242291,
             "spellcast": 852509694341283871,
-            "spellcast2": 893449443918086174,
+            "sketchyartist": 879864070101172255,
+            "awkword": 879863881349087252,
+            "ocho": 832025144389533716,
         }
 
     async def create_embedded_invite(self, channel, target_application_id):
