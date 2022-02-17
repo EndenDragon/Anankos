@@ -30,7 +30,7 @@ class RedditPublish:
                         last_created = first_created
                     for post in posts:
                         data = post["data"]
-                        post_created = post["created"]
+                        post_created = data["created"]
                         if post_created <= last_created:
                             last_created = first_created
                             break
