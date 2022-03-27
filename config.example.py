@@ -22,7 +22,7 @@ CONFIG = {
     },
 
     # Image Embed
-    "image_channelids": [605090070453551134, 703718904576475198, 608659392958824461],
+    "imageembed_channelids": [605090070453551134, 703718904576475198, 608659392958824461],
     "twitter_consumer_key": "key",
     "twitter_consumer_secret": "key",
     "twitter_access_token_key": "key",
@@ -37,6 +37,7 @@ CONFIG = {
     "lfs_roleid": 755687552434044929,
 
     # Art Mention
+    "artmention_channelids": [605090070453551134, 703718904576475198, 608659392958824461],
     "artmention_base_role_id": 793711429597134908,
     "artmention_pingboard_channelid": 825960862350704652,
     "artmention_thread_channelids": [703718904576475198, 608659392958824461],
