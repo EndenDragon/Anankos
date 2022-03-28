@@ -162,7 +162,7 @@ class ImageEmbed:
             url = url
         )
         embed.set_footer(text="Twitter", icon_url="https://abs.twimg.com/icons/apple-touch-icon-192x192.png")
-        embed.set_image(url=tweet_status.media[0].media_url_https)
+        embed.set_image(url=tweet_status.media[0].media_url_https + "?name=large")
         embed.set_author(
             name="{} ({})".format(tweet_status.user.name, tweet_status.user.screen_name),
             url="https://twitter.com/{}".format(tweet_status.user.screen_name),
