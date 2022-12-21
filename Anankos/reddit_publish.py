@@ -111,9 +111,21 @@ class RedditPublish:
             embed.add_field(name="Post Author", value="/u/{}".format(post_author), inline=True)
             return embed
         return None
+    
+    async def publish_message(self, message):
+        channel = message.channel
+        await message.guild._state.http.request(
+            discord.http.Route(
+                "POST",
+                "/channels/{channel_id}/messages/{message_id}/crosspost",
+                channel_id=channel.id,
+                message_id=message.id,
+            )
+        )
 
     async def publish_reddit_link(self, url):
         embed = await self.get_rich_embed(url)
         if embed:
             channel = self.client.get_channel(self.dest_chan_id)
-            await channel.send(embed=embed)
+            message = await channel.send(embed=embed)
+            await self.publish_message(message)
