@@ -13,6 +13,7 @@ from Anankos.dragalia_notification import DragaliaNotification
 from Anankos.activities import Activities
 from Anankos.priconne_notification import PriconneNotification
 from Anankos.automod import AutoMod
+from Anankos.art_deduper import ArtDeduper
 
 import discord
 import aiosqlite
@@ -44,6 +45,7 @@ class Anankos(discord.Client):
         self.activities = Activities(self, config.get("activities_channelid"))
         self.priconne_notification = PriconneNotification(self, config.get("priconnenotif_channelid"))
         self.automod = AutoMod(self)
+        self.art_deduper = ArtDeduper(self, config.get("deduper_channelids", []))
 
     async def on_connect(self):
         if self.db is None:
@@ -71,6 +73,7 @@ class Anankos(discord.Client):
         self.loop.create_task(self.nitro_emote.on_message(message))
         self.loop.create_task(self.activities.on_message(message))
         self.loop.create_task(self.automod.on_message(message))
+        self.loop.create_task(self.art_deduper.on_message(message))
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)
@@ -88,6 +91,7 @@ class Anankos(discord.Client):
 
     async def on_message_delete(self, message):
         await self.image_embed.on_message_delete(message)
+        await self.art_deduper.on_message_delete(message)
 
     async def on_component(self, component):
         await self.art_mention.on_component(component)
