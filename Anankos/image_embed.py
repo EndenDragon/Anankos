@@ -34,6 +34,7 @@ class ImageEmbed:
         
         self.pixiv_session_url = "https://api.pixiv.moe/session"
         self.pixiv_url = "https://www.pixiv.net/ajax/illust/{}?lang=en"
+        self.pixiv_oembed_fallback_url = "https://embed.pixiv.net/decorate.php?illust_id={}"
 
     def should_spoiler(self, url, content):
         url = re.escape(url)
@@ -214,16 +215,34 @@ class ImageEmbed:
         embed.set_footer(text="Pixiv", icon_url="https://s.pximg.net/common/images/apple-touch-icon.png")
         image = pixiv["urls"]["regular"]
         file_object = None
-        file_extension = image.split(".")[-1]
+        file_extension = None
+        if image is not None:
+            file_extension = image.split(".")[-1]
+            headers = {
+                "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
+                "accept-language": "en-US,en;q=0.9",
+                "referer": "https://www.pixiv.net/"
+            }
+            async with self.httpsession.get(image, headers=headers) as resp:
+                file_object = io.BytesIO(await resp.read())
+                file_object.seek(0)
+        else:
+            image = self.pixiv_oembed_fallback_url.format(pixiv_id)
+            async with self.httpsession.get(image) as resp:
+                file_object = io.BytesIO(await resp.read())
+                file_object.seek(0)
+                content_type = resp.headers.get("content-type")
+                if content_type == "image/png":
+                    file_extension = "png"
+                elif content_type == "image/jpg":
+                    file_extension = "jpg"
+                elif content_type == "image/jpeg":
+                    file_extension = "jpeg"
+                elif content_type == "image/gif":
+                    file_extension = "gif"
+                else:
+                    print("Unknown content type {}".format(content_type))
         file_name = "image.{}".format(file_extension)
-        headers = {
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
-            "accept-language": "en-US,en;q=0.9",
-            "referer": "https://www.pixiv.net/"
-        }
-        async with self.httpsession.get(image, headers=headers) as resp:
-            file_object = io.BytesIO(await resp.read())
-            file_object.seek(0)
         discord_file = discord.File(file_object, file_name)
         embed.set_image(url="attachment://{}".format(file_name))
         embed.set_author(
