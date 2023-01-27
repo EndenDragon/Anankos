@@ -18,27 +18,31 @@ class RedditPublish:
         await self.client.wait_until_ready()
         last_created = None
         while not self.client.is_closed():
-            async with self.httpsession.get("https://www.reddit.com/r/CorrinConclave/new.json?limit=5") as resp:
-                if resp.status >= 200 and resp.status < 300:
-                    result = await resp.json()
-                    posts = result["data"]["children"]
-                    if not len(posts):
-                        await asyncio.sleep(120)
-                        continue
-                    first_created = posts[0]["data"]["created"]
-                    if not last_created:
-                        last_created = first_created
-                    for post in posts:
-                        data = post["data"]
-                        post_created = data["created"]
-                        if post_created <= last_created:
+            try:
+                async with self.httpsession.get("https://www.reddit.com/r/CorrinConclave/new.json?limit=5") as resp:
+                    if resp.status >= 200 and resp.status < 300:
+                        result = await resp.json()
+                        posts = result["data"]["children"]
+                        if not len(posts):
+                            await asyncio.sleep(120)
+                            continue
+                        first_created = posts[0]["data"]["created"]
+                        if not last_created:
                             last_created = first_created
-                            break
-                        permalink = "https://reddit.com" + data["permalink"]
-                        embed = await self.get_rich_embed(permalink)
-                        if embed:
-                            channel = self.client.get_channel(self.source_chan_id)
-                            await channel.send(embed=embed)
+                        for post in posts:
+                            data = post["data"]
+                            post_created = data["created"]
+                            if post_created <= last_created:
+                                last_created = first_created
+                                break
+                            permalink = "https://reddit.com" + data["permalink"]
+                            embed = await self.get_rich_embed(permalink)
+                            if embed:
+                                channel = self.client.get_channel(self.source_chan_id)
+                                await channel.send(embed=embed)
+            except Exception as e:
+                print("Reddit Publish error:")
+                print(e)
             await asyncio.sleep(120)
 
     async def on_message(self, message):
