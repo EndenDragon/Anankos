@@ -60,8 +60,11 @@ class ArtMention:
         while not self.client.is_closed():
             if not self.pingboard_uptodate:
                 self.pingboard_uptodate = True
-                await self.update_pingboard()
-            await asyncio.sleep(60) # 1 minute
+                try:
+                    await self.update_pingboard()
+                except:
+                    pass
+            await asyncio.sleep(60 * 10) # 10 minute
 
     async def role_expired(self, character):
         elapsed_last = await self.get_time_elapsed(character)
@@ -299,10 +302,18 @@ class ArtMention:
             components = []
             for chunk in message_chunk:
                 components.append(create_actionrow(*chunk))
-            if chunk_id < len(existing_messages):
-                await existing_messages[chunk_id].edit(components=components)
-            else:
-                await channel.send("​", components=components)
+            retries_left = 10
+            while retries_left > 0:
+                try:
+                    if chunk_id < len(existing_messages):
+                        await existing_messages[chunk_id].edit(components=components)
+                        break
+                    else:
+                        await channel.send("​", components=components)
+                        break
+                except:
+                    retries_left = retries_left - 1
+                    await asyncio.sleep(round(66.33 - 6.33 * retries_left))
             chunk_id = chunk_id + 1
         for message in existing_messages[chunk_id:]:
             await message.delete()
