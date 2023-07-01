@@ -25,13 +25,9 @@ class ImageEmbed:
         self.pixiv_pattern = re.compile("www\.pixiv\.net\/en\/artworks\/(\d+)")
 
         self.deviantart_url = "https://backend.deviantart.com/oembed?url={}"
-
-        self.twitterapi = twitter.Api(consumer_key=twitter_consumer_key,
-                                        consumer_secret=twitter_consumer_secret,
-                                        access_token_key=twitter_access_token_key,
-                                        access_token_secret=twitter_access_token_secret,
-                                        tweet_mode="extended")
         
+        self.twitter_url = "https://cdn.syndication.twimg.com/tweet-result?features=tfw_timeline_list%3A%3Btfw_follower_count_sunset%3Atrue%3Btfw_tweet_edit_backend%3Aon%3Btfw_refsrc_session%3Aon%3Btfw_fosnr_soft_interventions_enabled%3Aon%3Btfw_mixed_media_15897%3Atreatment%3Btfw_experiments_cookie_expiration%3A1209600%3Btfw_show_birdwatch_pivots_enabled%3Aon%3Btfw_duplicate_scribes_to_settings%3Aon%3Btfw_use_profile_image_shape_enabled%3Aon%3Btfw_video_hls_dynamic_manifests_15082%3Atrue_bitrate%3Btfw_legacy_timeline_sunset%3Atrue%3Btfw_tweet_edit_frontend%3Aon&id={}&lang=en"
+
         self.pixiv_session_url = "https://api.pixiv.moe/session"
         self.pixiv_url = "https://www.pixiv.net/ajax/illust/{}?lang=en"
         self.pixiv_oembed_fallback_url = "https://embed.pixiv.net/decorate.php?illust_id={}"
@@ -147,10 +143,10 @@ class ImageEmbed:
         if not twitter_id:
             return None
         twitter_id = int(twitter_id.group(1))
-        tweet_status = self.twitterapi.GetStatus(twitter_id)
+        tweet_status = await self.fetch_twitter(twitter_id)
         if not tweet_status:
             return None
-        if not hasattr(tweet_status, "media") or not tweet_status.media or len(tweet_status.media) == 0:
+        if not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
             return None
         if message not in self.forced_embeds and not force_ignore_embeds:
             for embed in message.embeds:
@@ -158,19 +154,19 @@ class ImageEmbed:
                     if url == embed.url:
                         return None
         embed = discord.Embed(
-            description = tweet_status.full_text,
+            description = tweet_status["text"],
             color = 1942002,
             url = url
         )
         embed.set_footer(text="Twitter", icon_url="https://abs.twimg.com/icons/apple-touch-icon-192x192.png")
-        embed.set_image(url=tweet_status.media[0].media_url_https + "?name=large")
+        embed.set_image(url=tweet_status["mediaDetails"][0]["media_url_https"] + "?name=large")
         embed.set_author(
-            name="{} ({})".format(tweet_status.user.name, tweet_status.user.screen_name),
-            url="https://twitter.com/{}".format(tweet_status.user.screen_name),
-            icon_url=tweet_status.user.profile_image_url_https
+            name="{} ({})".format(tweet_status["user"]["name"], tweet_status["user"]["screen_name"]),
+            url="https://twitter.com/{}".format(tweet_status["user"]["screen_name"]),
+            icon_url=tweet_status["user"]["profile_image_url_https"]
         )
-        embed.add_field(name="Retweets", value=tweet_status.retweet_count, inline=True)
-        embed.add_field(name="Likes", value=tweet_status.favorite_count, inline=True)
+        #embed.add_field(name="Retweets", value=tweet_status.retweet_count, inline=True)
+        embed.add_field(name="Likes", value=tweet_status["favorite_count"], inline=True)
         return embed, None
     
     async def get_deviantart_embed(self, url, message, force_ignore_embeds):
@@ -264,3 +260,17 @@ class ImageEmbed:
             result = await resp.json()
             return result["body"]
         return None
+
+    async def fetch_twitter(self, tweet_id):
+        headers = {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
+            "accept-language": "en-US,en;q=0.9",
+            "referer": "https://twitter.com/"
+        }
+        async with self.httpsession.get(self.twitter_url.format(tweet_id), headers=headers) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                return None
+            result = await resp.json()
+            return result
+        return None
+
