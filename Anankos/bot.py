@@ -14,6 +14,7 @@ from Anankos.activities import Activities
 from Anankos.priconne_notification import PriconneNotification
 from Anankos.automod import AutoMod
 from Anankos.art_deduper import ArtDeduper
+from Anankos.edit_link_filter import EditLinkFilter
 
 import discord
 import aiosqlite
@@ -46,6 +47,7 @@ class Anankos(discord.Client):
         self.priconne_notification = PriconneNotification(self, config.get("priconnenotif_channelid"))
         self.automod = AutoMod(self)
         self.art_deduper = ArtDeduper(self, config.get("deduper_channelids", []))
+        self.edit_link_filter = EditLinkFilter(self, config.get("elf_links", []))
 
     async def on_connect(self):
         if self.db is None:
@@ -77,6 +79,7 @@ class Anankos(discord.Client):
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)
+        await self.edit_link_filter.on_message_edit(before, after)
         await self.image_embed.on_message_edit(before, after)
 
     async def on_raw_reaction_add(self, payload):

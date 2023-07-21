@@ -72,4 +72,16 @@ CONFIG = {
 
     # Activities
     "activities_channelid": 606555341890650142,
+
+    # Edit Link Filter (elf)
+    "elf_links": [
+        ".wiki",
+        "dis.gd",
+        "discord.com",
+        "discord.gg",
+        "discord.media",
+        "discordapp.com",
+        "discordapp.net",
+        "dragalialost.com",
+    ],
 }
