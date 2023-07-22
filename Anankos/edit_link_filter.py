@@ -9,7 +9,7 @@ class EditLinkFilter:
         self.extractor = URLExtract()
 
     async def on_message_edit(self, message_before, message_after):
-        if not message_after.edited_at or message_after.author.bot or not message_after.author.joined_at: or \
+        if not message_after.edited_at or message_after.author.bot or not message_after.author.joined_at or \
             message_after.channel.permissions_for(message_after.author).manage_messages or \
             message_after.author.joined_at < (datetime.datetime.now() - timedelta(days=180)):
             return
