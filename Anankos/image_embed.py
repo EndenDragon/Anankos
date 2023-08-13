@@ -139,6 +139,8 @@ class ImageEmbed:
 
     async def get_twitter_embed(self, url, message, force_ignore_embeds):
         url = url.replace("mobile.twitter.com", "twitter.com")
+        if "fxtwitter" in url.lower() or "vxtwitter" in url.lower():
+            return None
         twitter_id = self.twitter_pattern.search(url)
         if not twitter_id:
             return None
@@ -238,6 +240,8 @@ class ImageEmbed:
                     file_extension = "gif"
                 else:
                     print("Unknown content type {}".format(content_type))
+        if file_extension is None:
+            return None
         file_name = "image.{}".format(file_extension)
         discord_file = discord.File(file_object, file_name)
         embed.set_image(url="attachment://{}".format(file_name))
