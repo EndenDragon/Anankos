@@ -26,7 +26,7 @@ class ImageEmbed:
 
         self.deviantart_url = "https://backend.deviantart.com/oembed?url={}"
         
-        self.twitter_url = "https://cdn.syndication.twimg.com/tweet-result?features=tfw_timeline_list%3A%3Btfw_follower_count_sunset%3Atrue%3Btfw_tweet_edit_backend%3Aon%3Btfw_refsrc_session%3Aon%3Btfw_fosnr_soft_interventions_enabled%3Aon%3Btfw_mixed_media_15897%3Atreatment%3Btfw_experiments_cookie_expiration%3A1209600%3Btfw_show_birdwatch_pivots_enabled%3Aon%3Btfw_duplicate_scribes_to_settings%3Aon%3Btfw_use_profile_image_shape_enabled%3Aon%3Btfw_video_hls_dynamic_manifests_15082%3Atrue_bitrate%3Btfw_legacy_timeline_sunset%3Atrue%3Btfw_tweet_edit_frontend%3Aon&id={}&lang=en"
+        self.twitter_url = "https://cdn.syndication.twimg.com/tweet-result?features=tfw_timeline_list%3A%3Btfw_follower_count_sunset%3Atrue%3Btfw_tweet_edit_backend%3Aon%3Btfw_refsrc_session%3Aon%3Btfw_fosnr_soft_interventions_enabled%3Aon%3Btfw_mixed_media_15897%3Atreatment%3Btfw_experiments_cookie_expiration%3A1209600%3Btfw_show_birdwatch_pivots_enabled%3Aon%3Btfw_duplicate_scribes_to_settings%3Aon%3Btfw_use_profile_image_shape_enabled%3Aon%3Btfw_video_hls_dynamic_manifests_15082%3Atrue_bitrate%3Btfw_legacy_timeline_sunset%3Atrue%3Btfw_tweet_edit_frontend%3Aon&id={}&lang=en&token={}"
 
         self.pixiv_session_url = "https://api.pixiv.moe/session"
         self.pixiv_url = "https://www.pixiv.net/ajax/illust/{}?lang=en"
@@ -55,7 +55,7 @@ class ImageEmbed:
         self.ready.clear()
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
-        if any(self.pixiv_pattern.search(line) for line in urls) and not force_ignore_embeds:
+        if all("fxtwitter" not in line and "vxtwitter" not in line for line in urls) and not force_ignore_embeds:
             self.forced_embeds.append(message)
             if len(message.embeds):
                 await message.edit(suppress=True)
@@ -271,7 +271,8 @@ class ImageEmbed:
             "accept-language": "en-US,en;q=0.9",
             "referer": "https://twitter.com/"
         }
-        async with self.httpsession.get(self.twitter_url.format(tweet_id), headers=headers) as resp:
+        token = tweet_id
+        async with self.httpsession.get(self.twitter_url.format(tweet_id, token), headers=headers) as resp:
             if resp.status < 200 or resp.status >= 300:
                 return None
             result = await resp.json()
