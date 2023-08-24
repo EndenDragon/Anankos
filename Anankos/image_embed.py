@@ -2,6 +2,7 @@ import discord
 import re
 from urlextract import URLExtract
 from collections import deque
+from bs4 import BeautifulSoup
 import asyncio
 import aiohttp
 import twitter
@@ -27,10 +28,12 @@ class ImageEmbed:
         self.deviantart_url = "https://backend.deviantart.com/oembed?url={}"
         
         self.twitter_url = "https://cdn.syndication.twimg.com/tweet-result?features=tfw_timeline_list%3A%3Btfw_follower_count_sunset%3Atrue%3Btfw_tweet_edit_backend%3Aon%3Btfw_refsrc_session%3Aon%3Btfw_fosnr_soft_interventions_enabled%3Aon%3Btfw_mixed_media_15897%3Atreatment%3Btfw_experiments_cookie_expiration%3A1209600%3Btfw_show_birdwatch_pivots_enabled%3Aon%3Btfw_duplicate_scribes_to_settings%3Aon%3Btfw_use_profile_image_shape_enabled%3Aon%3Btfw_video_hls_dynamic_manifests_15082%3Atrue_bitrate%3Btfw_legacy_timeline_sunset%3Atrue%3Btfw_tweet_edit_frontend%3Aon&id={}&lang=en&token={}"
+        self.fxtwitter_url = "https://api.fxtwitter.com/user/status/{}"
+        self.vxtwitter_url = "https://api.vxtwitter.com/user/status/{}"
 
-        self.pixiv_session_url = "https://api.pixiv.moe/session"
         self.pixiv_url = "https://www.pixiv.net/ajax/illust/{}?lang=en"
         self.pixiv_oembed_fallback_url = "https://embed.pixiv.net/decorate.php?illust_id={}"
+        self.phixiv_url = "https://www.phixiv.net/en/artworks/{}"
 
     def should_spoiler(self, url, content):
         url = re.escape(url)
@@ -146,10 +149,12 @@ class ImageEmbed:
             return None
         twitter_id = int(twitter_id.group(1))
         tweet_status = await self.fetch_twitter(twitter_id)
-        if not tweet_status:
-            return None
-        if not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
-            return None
+        if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
+            tweet_status = await self.fetch_fxtwitter(twitter_id)
+            if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
+                tweet_status = await self.fetch_vxtwitter(twitter_id)
+                if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
+                    return None
         if message not in self.forced_embeds and not force_ignore_embeds:
             for embed in message.embeds:
                 if embed.footer and embed.footer.text == "Twitter":
@@ -214,6 +219,20 @@ class ImageEmbed:
         image = pixiv["urls"]["regular"]
         file_object = None
         file_extension = None
+        if image is None:
+            headers = {
+                "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"
+            }
+            async with self.httpsession.get(self.phixiv_url.format(pixiv_id), headers=headers) as resp:
+                if resp.status < 200 or resp.status >= 300:
+                    image = None
+                else:
+                    html = await resp.text()
+                    soup = BeautifulSoup(html, features="html.parser")
+                    for tag in soup.find_all("meta"):
+                        if tag.get("property", None) == "og:image":
+                            image = tag.get("content", None)
+                            break
         if image is not None:
             file_extension = image.split(".")[-1]
             headers = {
@@ -277,5 +296,45 @@ class ImageEmbed:
                 return None
             result = await resp.json()
             return result
+        return None
+
+    async def fetch_fxtwitter(self, tweet_id):
+        headers = {
+            "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"
+        }
+        async with self.httpsession.get(self.fxtwitter_url.format(tweet_id), headers=headers) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                return None
+            result = await resp.json()
+            return {
+                "user": {
+                    "name": result["tweet"]["author"]["name"],
+                    "screen_name": result["tweet"]["author"]["screen_name"],
+                    "profile_image_url_https": result["tweet"]["author"]["avatar_url"],
+                },
+                "text": result["tweet"]["text"],
+                "favorite_count": result["tweet"]["likes"],
+                "mediaDetails": [] if not result["tweet"].get("media", None) or not len(result["tweet"]["media"]["all"]) or result["tweet"]["media"]["all"][0].get("type", None) != "photo" else [{"media_url_https": result["tweet"]["media"]["all"][0]["url"]}]
+            }
+        return None
+
+    async def fetch_vxtwitter(self, tweet_id):
+        headers = {
+            "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"
+        }
+        async with self.httpsession.get(self.vxtwitter_url.format(tweet_id), headers=headers) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                return None
+            result = await resp.json()
+            return {
+                "user": {
+                    "name": result["user_name"],
+                    "screen_name": result["user_screen_name"],
+                    "profile_image_url_https": "https://abs.twimg.com/icons/apple-touch-icon-192x192.png",
+                },
+                "text": result["text"],
+                "favorite_count": result["likes"],
+                "mediaDetails": [] if not result.get("media_extended", None) or not len(result["media_extended"]) or result["media_extended"][0].get("type", None) != "image" else [{"media_url_https": result["media_extended"][0]["url"]}]
+            }
         return None
 

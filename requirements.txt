@@ -7,3 +7,4 @@ git+https://github.com/discord-py-slash-commands/discord-py-slash-command.git@co
 asyncpraw
 pycrypto
 python-dateutil
+beautifulsoup4
