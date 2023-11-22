@@ -11,7 +11,7 @@ class EditLinkFilter:
     async def on_message_edit(self, message_before, message_after):
         if not message_after.edited_at or message_after.author.bot or not message_after.author.joined_at or \
             message_after.channel.permissions_for(message_after.author).manage_messages or \
-            message_after.author.joined_at < (datetime.datetime.now() - timedelta(days=180)):
+            message_after.author.joined_at < (datetime.datetime.now() - datetime.timedelta(days=180)):
             return
         urls_after = set(self.extractor.find_urls(message_after.content, True))
         for url in urls_after:
