@@ -3,14 +3,22 @@ import aiohttp
 import html
 import discord
 import asyncio
+import asyncpraw
 
 class RedditPublish:
-    def __init__(self, client, source_chan_id, dest_chan_id):
+    def __init__(self, client, source_chan_id, dest_chan_id, client_id, client_secret):
         self.client = client
         self.source_chan_id = source_chan_id
         self.dest_chan_id = dest_chan_id
+        self.client_id = client_id
+        self.client_secret = client_secret
         self.extractor = URLExtract()
         self.httpsession = aiohttp.ClientSession()
+        self.reddit = asyncpraw.Reddit(
+            client_id=client_id,
+            client_secret=client_secret,
+            user_agent="Anankos Discord Bot for Corrin Conclave Community https://github.com/EndenDragon/Anankos",
+        )
 
         self.bg_task = self.client.loop.create_task(self.background_task())
 
@@ -19,27 +27,17 @@ class RedditPublish:
         last_created = None
         while not self.client.is_closed():
             try:
-                async with self.httpsession.get("https://www.reddit.com/r/CorrinConclave/new.json?limit=5") as resp:
-                    if resp.status >= 200 and resp.status < 300:
-                        result = await resp.json()
-                        posts = result["data"]["children"]
-                        if not len(posts):
-                            await asyncio.sleep(120)
-                            continue
-                        first_created = posts[0]["data"]["created"]
-                        if not last_created:
-                            last_created = first_created
-                        for post in posts:
-                            data = post["data"]
-                            post_created = data["created"]
-                            if post_created <= last_created:
-                                last_created = first_created
-                                break
-                            permalink = "https://reddit.com" + data["permalink"]
-                            embed = await self.get_rich_embed(permalink)
-                            if embed:
-                                channel = self.client.get_channel(self.source_chan_id)
-                                await channel.send(embed=embed)
+                subreddit = await self.reddit.subreddit("CorrinConclave")
+                async for submission in subreddit.stream.submissions(skip_existing=True):
+                    try:
+                        permalink = "https://reddit.com" + submission.permalink
+                        embed = await self.get_rich_embed(permalink)
+                        if embed:
+                            channel = self.client.get_channel(self.source_chan_id)
+                            await channel.send(embed=embed)
+                    except Exception as e:
+                        print("Reddit Publish submission error:")
+                        print(e)
             except Exception as e:
                 print("Reddit Publish error:")
                 print(e)
@@ -77,44 +75,40 @@ class RedditPublish:
             return None
         if url.endswith("/"):
             url = url[:-1]
-        url = url + ".json"
-        async with self.httpsession.get(url) as resp:
-            if resp.status < 200 or resp.status >= 300:
-                return None
-            result = await resp.json()
-            result = result[0]["data"]["children"][0]["data"]
-            if result["over_18"]:
-                return None
-            post_title = result["title"]
-            post_author = result["author"]
-            post_url = "https://reddit.com" + result["permalink"]
-            subreddit_name = result["subreddit"]
-            image_url = None
-            text = result.get("selftext", None)
-            if result.get("preview", None) and result["preview"].get("images", []) and len(result["preview"]["images"]):
-                image_url = result["preview"]["images"][0]["source"]["url"]
-            elif result.get("media_metadata", None):
-                key = list(result["media_metadata"].keys())[0]
-                image_url = result["media_metadata"][key]["s"]["u"]
-            if image_url:
-                image_url = html.unescape(image_url)
-            if text and len(text) > 230:
-                text = text[:230].strip() + "..."
-            embed = discord.Embed(
-                title = post_title,
-                color = 16721408,
-                url = image_url if image_url else post_url,
-                description = text
-            )
-            if image_url:
-                embed.set_image(url=image_url)
-            embed.set_author(
-                name="New{} post on /r/{}".format(" image" if image_url else "", subreddit_name),
-                url=post_url
-            )
-            embed.add_field(name="Post Author", value="/u/{}".format(post_author), inline=True)
-            return embed
-        return None
+        result = await self.reddit.submission(url=url)
+        if result.over_18:
+            return None
+        post_title = result.title
+        post_author = result.author
+        post_url = "https://reddit.com" + result.permalink
+        await result.subreddit.load()
+        subreddit_name = result.subreddit.name
+        image_url = None
+        text = result.selftext
+        print(result.preview)
+        if result.preview and result.preview["images"] and len(result.preview["images"]):
+            image_url = result.preview["images"][0]["source"]["url"]
+        elif result.media_metadata:
+            key = list(result.media_metadata.keys())[0]
+            image_url = result.media_metadata[key]["s"]["u"]
+        if image_url:
+            image_url = html.unescape(image_url)
+        if text and len(text) > 230:
+            text = text[:230].strip() + "..."
+        embed = discord.Embed(
+            title = post_title,
+            color = 16721408,
+            url = image_url if image_url else post_url,
+            description = text
+        )
+        if image_url:
+            embed.set_image(url=image_url)
+        embed.set_author(
+            name="New{} post on /r/{}".format(" image" if image_url else "", subreddit_name),
+            url=post_url
+        )
+        embed.add_field(name="Post Author", value="/u/{}".format(post_author), inline=True)
+        return embed
     
     async def publish_message(self, message):
         channel = message.channel
