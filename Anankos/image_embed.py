@@ -2,12 +2,12 @@ import discord
 import re
 from urlextract import URLExtract
 from collections import deque
-from bs4 import BeautifulSoup
 import asyncio
 import aiohttp
 import twitter
 import datetime
 import io
+from markdownify import markdownify
 
 class ImageEmbed:
     def __init__(self, client, channel_ids, twitter_consumer_key, twitter_consumer_secret, twitter_access_token_key, twitter_access_token_secret):
@@ -33,7 +33,7 @@ class ImageEmbed:
 
         self.pixiv_url = "https://www.pixiv.net/ajax/illust/{}?lang=en"
         self.pixiv_oembed_fallback_url = "https://embed.pixiv.net/decorate.php?illust_id={}"
-        self.phixiv_url = "https://www.phixiv.net/en/artworks/{}"
+        self.phixiv_url = "https://www.phixiv.net/api/info?id={}&language=en"
 
     def should_spoiler(self, url, content):
         url = re.escape(url)
@@ -207,8 +207,11 @@ class ImageEmbed:
         pixiv = await self.fetch_pixiv(pixiv_id)
         if not pixiv:
             return None
+        description = pixiv.get("description", None)
+        if description:
+            description = markdownify(description, strip=["a"])
         embed = discord.Embed(
-            description = pixiv.get("description", None),
+            description = description[:4000],
             color = 12123135,
             url = url,
             title = pixiv.get("title", None)
@@ -225,12 +228,9 @@ class ImageEmbed:
                 if resp.status < 200 or resp.status >= 300:
                     image = None
                 else:
-                    html = await resp.text()
-                    soup = BeautifulSoup(html, features="html.parser")
-                    for tag in soup.find_all("meta"):
-                        if tag.get("property", None) == "og:image":
-                            image = tag.get("content", None)
-                            break
+                    response = await resp.json()
+                    if len(response.get("image_proxy_urls", [])):
+                        image = response["image_proxy_urls"][0]
         if image is not None:
             file_extension = image.split(".")[-1]
             headers = {
