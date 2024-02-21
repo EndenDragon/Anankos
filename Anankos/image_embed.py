@@ -209,9 +209,9 @@ class ImageEmbed:
             return None
         description = pixiv.get("description", None)
         if description:
-            description = markdownify(description, strip=["a"])
+            description = markdownify(description, strip=["a"])[:4000]
         embed = discord.Embed(
-            description = description[:4000],
+            description = description,
             color = 12123135,
             url = url,
             title = pixiv.get("title", None)
