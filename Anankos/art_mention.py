@@ -70,7 +70,7 @@ class ArtMention:
         elapsed_last = await self.get_time_elapsed(character)
         if elapsed_last < 0:
             return True
-        time_left = max(172800 - elapsed_last, 0) # 2 days
+        time_left = max(604800 - elapsed_last, 0) # 7 days
         return time_left <= 0
 
     async def get_time_elapsed(self, character):
