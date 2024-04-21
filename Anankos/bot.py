@@ -15,11 +15,15 @@ from Anankos.priconne_notification import PriconneNotification
 from Anankos.automod import AutoMod
 from Anankos.art_deduper import ArtDeduper
 from Anankos.edit_link_filter import EditLinkFilter
+from Anankos.poll_manager import PollManager
 
 import discord
 import aiosqlite
 import sqlite3
 from discord_slash import SlashCommand
+from Anankos.monkey_patch import monkey_patch
+
+monkey_patch()
 
 class Anankos(discord.Client):
     def __init__(self, config):
@@ -48,6 +52,7 @@ class Anankos(discord.Client):
         self.automod = AutoMod(self)
         self.art_deduper = ArtDeduper(self, config.get("deduper_channelids", []))
         self.edit_link_filter = EditLinkFilter(self, config.get("elf_links", []))
+        self.poll_manager = PollManager(self, config.get("poll_channelid"))
 
     async def on_connect(self):
         if self.db is None:
@@ -76,6 +81,7 @@ class Anankos(discord.Client):
         self.loop.create_task(self.activities.on_message(message))
         self.loop.create_task(self.automod.on_message(message))
         self.loop.create_task(self.art_deduper.on_message(message))
+        self.loop.create_task(self.poll_manager.on_message(message))
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)

@@ -1,3 +1,5 @@
+from Anankos.utils import create_thread
+
 import datetime
 import discord
 import asyncio
@@ -94,21 +96,6 @@ class ArtMention:
             await self.client.db.execute("UPDATE art_mention_timestamp SET timestamp = ? WHERE character = ?;", (time, character))
         await self.client.db.commit()
 
-    async def create_thread(self, message, name, auto_archive_duration=1440):
-        channel = message.channel
-        data = await message.guild._state.http.request(
-            discord.http.Route(
-                "POST", 
-                "/channels/{channel_id}/messages/{message_id}/threads",
-                channel_id=channel.id, 
-                message_id=message.id
-            ),
-            json={"name": name, "auto_archive_duration": auto_archive_duration}
-        )
-        data["position"] = 100
-        channel = discord.TextChannel(state=message.guild._state, guild=message.guild, data=data)
-        return channel
-
     async def on_message(self, message):
         if message.author.id == self.client.user.id or len(message.content) == 0:
             return
@@ -169,7 +156,7 @@ class ArtMention:
                 components.append(create_actionrow(*chunk))
             channel = message.channel
             if message.channel.id in self.thread_channelids:
-                channel = await self.create_thread(message, ("art-" + "_".join(names))[:99])
+                channel = await create_thread(message, ("art-" + "_".join(names))[:99])
             await channel.send(mentions, mention_author=False, components=components)
             if message.channel.id in self.thread_channelids:
                 await self.client.image_embed.post_image_embeds(message, channel)

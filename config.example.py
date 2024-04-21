@@ -84,4 +84,7 @@ CONFIG = {
         "discordapp.net",
         "dragalialost.com",
     ],
+
+    # Poll Manager
+    "poll_channelid": 149029550599176192,
 }
