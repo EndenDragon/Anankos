@@ -141,7 +141,7 @@ class ImageEmbed:
         return message_content.count("<" + url + ">") < message_content.count(url)
 
     async def get_twitter_embed(self, url, message, force_ignore_embeds):
-        url = url.replace("mobile.twitter.com", "twitter.com").replace("fxtwitter.com", "twitter.com").replace("vxtwitter.com", "twitter.com")
+        url = url.replace("mobile.twitter.com", "twitter.com").replace("fxtwitter.com", "twitter.com").replace("vxtwitter.com", "twitter.com").replace("/x.com", "/twitter.com")
         twitter_id = self.twitter_pattern.search(url)
         if not twitter_id:
             return None
