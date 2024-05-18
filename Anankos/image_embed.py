@@ -58,7 +58,7 @@ class ImageEmbed:
         self.ready.clear()
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
-        if all(("twitter" in line or "pixiv" in line) for line in urls) and not force_ignore_embeds:
+        if all(("twitter" in line or "pixiv" in line or "/x.com" in line) for line in urls) and not force_ignore_embeds:
             self.forced_embeds.append(message)
             if len(message.embeds):
                 await message.edit(suppress=True)
