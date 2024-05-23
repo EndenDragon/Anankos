@@ -146,11 +146,11 @@ class ImageEmbed:
         if not twitter_id:
             return None
         twitter_id = int(twitter_id.group(1))
-        tweet_status = await self.fetch_twitter(twitter_id)
+        tweet_status = await self.fetch_fxtwitter(twitter_id)
         if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
-            tweet_status = await self.fetch_fxtwitter(twitter_id)
+            tweet_status = await self.fetch_vxtwitter(twitter_id)
             if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
-                tweet_status = await self.fetch_vxtwitter(twitter_id)
+                tweet_status = await self.fetch_twitter(twitter_id)
                 if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
                     return None
         if message not in self.forced_embeds and not force_ignore_embeds:
@@ -304,6 +304,9 @@ class ImageEmbed:
             if resp.status < 200 or resp.status >= 300:
                 return None
             result = await resp.json()
+            media_details = [] if not result["tweet"].get("media", None) or not len(result["tweet"]["media"]["all"]) or result["tweet"]["media"]["all"][0].get("type", None) != "photo" else [{"media_url_https": result["tweet"]["media"]["all"][0]["url"]}]
+            if media_details and result["tweet"]["media"].get("mosaic", None) and result["tweet"]["media"]["mosaic"].get("formats", None) and result["tweet"]["media"]["mosaic"]["formats"].get("jpeg", None):
+                media_details = [{"media_url_https": result["tweet"]["media"]["mosaic"]["formats"]["jpeg"]}]
             return {
                 "user": {
                     "name": result["tweet"]["author"]["name"],
@@ -312,7 +315,7 @@ class ImageEmbed:
                 },
                 "text": result["tweet"]["text"],
                 "favorite_count": result["tweet"]["likes"],
-                "mediaDetails": [] if not result["tweet"].get("media", None) or not len(result["tweet"]["media"]["all"]) or result["tweet"]["media"]["all"][0].get("type", None) != "photo" else [{"media_url_https": result["tweet"]["media"]["all"][0]["url"]}]
+                "mediaDetails": media_details
             }
         return None
 
@@ -324,6 +327,9 @@ class ImageEmbed:
             if resp.status < 200 or resp.status >= 300:
                 return None
             result = await resp.json()
+            media_details = [] if not result.get("media_extended", None) or not len(result["media_extended"]) or result["media_extended"][0].get("type", None) != "image" else [{"media_url_https": result["media_extended"][0]["url"]}]
+            if media_details and result.get("combinedMediaUrl", None):
+                media_details = [{"media_url_https": result["combinedMediaUrl"]}]
             return {
                 "user": {
                     "name": result["user_name"],
@@ -332,7 +338,7 @@ class ImageEmbed:
                 },
                 "text": result["text"],
                 "favorite_count": result["likes"],
-                "mediaDetails": [] if not result.get("media_extended", None) or not len(result["media_extended"]) or result["media_extended"][0].get("type", None) != "image" else [{"media_url_https": result["media_extended"][0]["url"]}]
+                "mediaDetails": media_details
             }
         return None
 
