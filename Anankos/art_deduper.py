@@ -46,7 +46,10 @@ class ArtDeduper:
 
     def get_image_obj(self, url, message):
         # Twitter
-        url = url.replace("mobile.twitter.com", "twitter.com")
+        url = url.replace("mobile.twitter.com", "twitter.com") \
+            .replace("/x.com/", "/twitter.com/") \
+            .replace("fxtwitter.com", "twitter.com") \
+            .replace("vxtwitter.com", "twitter.com")
         twitter_id = self.twitter_pattern.search(url)
         if twitter_id:
             twitter_id = int(twitter_id.group(1))
