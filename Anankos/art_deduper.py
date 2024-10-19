@@ -24,6 +24,7 @@ class ArtDeduper:
 
         self.twitter_pattern = re.compile("twitter.com/\w+/status/(\d+)")
         self.pixiv_pattern = re.compile("www\.pixiv\.net\/en\/artworks\/(\d+)")
+        self.bsky_pattern = re.compile("bsky.app\/profile/.+/post/(\w+)")
 
     def cache_message(self, message):
         urls = self.extractor.find_urls(message.content, True)
@@ -60,6 +61,12 @@ class ArtDeduper:
         if pixiv_link:
             pixiv_id = int(pixiv_link.group(1))
             return Image("Pixiv", pixiv_id, message)
+
+        # Bluesky
+        bsky_link = self.bsky_pattern.search(url)
+        if bsky_link:
+            bsky_id = bsky_link.group(1)
+            return Image("Bluesky", bsky_id, message)
 
         return None
 

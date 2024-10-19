@@ -8,6 +8,7 @@ import twitter
 import datetime
 import io
 from markdownify import markdownify
+from bs4 import BeautifulSoup
 
 class ImageEmbed:
     def __init__(self, client, channel_ids, twitter_consumer_key, twitter_consumer_secret, twitter_access_token_key, twitter_access_token_secret):
@@ -24,6 +25,7 @@ class ImageEmbed:
         self.twitter_pattern = re.compile("twitter.com/\w+/status/(\d+)")
         self.deviantart_pattern = re.compile("deviantart\.com.*.\d")
         self.pixiv_pattern = re.compile("www\.pixiv\.net\/en\/artworks\/(\d+)")
+        self.bsky_pattern = re.compile("bsky.app\/profile\/(.+)\/post\/(\w+)")
 
         self.deviantart_url = "https://backend.deviantart.com/oembed?url={}"
         
@@ -35,6 +37,8 @@ class ImageEmbed:
         self.pixiv_oembed_fallback_url = "https://embed.pixiv.net/decorate.php?illust_id={}"
         self.phixiv_url = "https://www.phixiv.net/api/info?id={}&language=en"
 
+        self.bsky_url = "https://cbsky.app/profile/{}/post/{}"
+
     def should_spoiler(self, url, content):
         url = re.escape(url)
         match = re.search("\|\|\s*{}\s+\|\|".format(url), content)
@@ -45,7 +49,8 @@ class ImageEmbed:
     async def get_rich_embed(self, url, message, force_ignore_embeds):
         return await self.get_twitter_embed(url, message, force_ignore_embeds) or \
             await self.get_deviantart_embed(url, message, force_ignore_embeds) or \
-            await self.get_pixiv_embed(url, message, force_ignore_embeds)
+            await self.get_pixiv_embed(url, message, force_ignore_embeds) or \
+            await self.get_bsky_embed(url, message, force_ignore_embeds)
 
     async def on_message(self, message):
         await self.post_image_embeds(message)
@@ -58,7 +63,7 @@ class ImageEmbed:
         self.ready.clear()
         urls = self.extractor.find_urls(message.content, True)
         urls = [url for url in urls if self.filter_link(url, message.content)]
-        if all(("twitter" in line or "pixiv" in line or "/x.com" in line) for line in urls) and not force_ignore_embeds:
+        if all(("twitter" in line or "pixiv" in line or "/x.com" in line or "bsky.app" in line) for line in urls) and not force_ignore_embeds:
             self.forced_embeds.append(message)
             if len(message.embeds):
                 await message.edit(suppress=True)
@@ -198,6 +203,50 @@ class ImageEmbed:
             embed.set_image(url=result["url"])
             embed.set_author(name=result["author_name"], url=result["author_url"], icon_url="https://st.deviantart.net/eclipse/icons/android-192.png")
             return embed, None
+
+    async def get_bsky_embed(self, url, message, force_ignore_embeds):
+        bsky_link = self.bsky_pattern.search(url)
+        if not bsky_link:
+            return None
+        username = bsky_link.group(1)
+        postid = bsky_link.group(2)
+        bsky = await self.fetch_bsky(username, postid)
+        if not bsky:
+            return None
+        description = None
+        image = None
+        title = None
+        for tag in bsky.find_all("meta"):
+            if image is None and tag.get("name", None) == "twitter:image":
+                image = tag.get("content", None)
+            if tag.get("property", None) == "og:title":
+                title = tag.get("content", None)
+            if tag.get("property", None) == "og:description":
+                description = tag.get("content", None)
+        if image is None:
+            return None
+        embed = discord.Embed(
+            description = description,
+            color = 686847,
+            url = url,
+            title = title
+        )
+        embed.set_footer(text="Bluesky", icon_url="https://bsky.social/about/images/favicon-32x32.png")
+        embed.set_image(url=image)
+        return embed, None
+
+    async def fetch_bsky(self, username, postid):
+        headers = {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
+            "accept-language": "en-US,en;q=0.9",
+            "referer": self.bsky_url.format(username, postid)
+        }
+        async with self.httpsession.get(self.bsky_url.format(username, postid), headers=headers) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                return None
+            result = await resp.text()
+            return BeautifulSoup(result, features="html.parser")
+        return None
 
     async def get_pixiv_embed(self, url, message, force_ignore_embeds):
         pixiv_link = self.pixiv_pattern.search(url)
