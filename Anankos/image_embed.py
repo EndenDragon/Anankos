@@ -37,7 +37,7 @@ class ImageEmbed:
         self.pixiv_oembed_fallback_url = "https://embed.pixiv.net/decorate.php?illust_id={}"
         self.phixiv_url = "https://www.phixiv.net/api/info?id={}&language=en"
 
-        self.bsky_url = "https://cbsky.app/profile/{}/post/{}"
+        self.bsky_url = "https://fxbsky.app/profile/{}/post/{}"
 
     def should_spoiler(self, url, content):
         url = re.escape(url)
