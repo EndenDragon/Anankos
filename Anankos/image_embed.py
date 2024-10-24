@@ -237,7 +237,7 @@ class ImageEmbed:
 
     async def fetch_bsky(self, username, postid):
         headers = {
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
+            "user-agent": "Discordbot",
             "accept-language": "en-US,en;q=0.9",
             "referer": self.bsky_url.format(username, postid)
         }
