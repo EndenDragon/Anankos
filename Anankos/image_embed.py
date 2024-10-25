@@ -9,6 +9,7 @@ import datetime
 import io
 from markdownify import markdownify
 from bs4 import BeautifulSoup
+import mimetypes
 
 class ImageEmbed:
     def __init__(self, client, channel_ids, twitter_consumer_key, twitter_consumer_secret, twitter_access_token_key, twitter_access_token_secret):
@@ -40,6 +41,8 @@ class ImageEmbed:
         self.bsky_url = "https://fxbsky.app/profile/{}/post/{}"
 
     def should_spoiler(self, url, content):
+        if url.endswith("||"):
+            return True
         url = re.escape(url)
         match = re.search("\|\|\s*{}\s+\|\|".format(url), content)
         if match:
@@ -81,7 +84,9 @@ class ImageEmbed:
         to_cache = []
         for embed, attachment in embeds[:4]:
             if embed in spoiler:
-                em_msg = await channel.send("||https://corr.in/s ||", embed=embed, files=attachment)
+                if attachment is not None:
+                    attachment.spoiler = True
+                em_msg = await channel.send("||https://corr.in/s ||", embed=embed, file=attachment)
             else:
                 em_msg = await channel.send(embed=embed, file=attachment)
             to_cache.append(em_msg)
@@ -163,13 +168,14 @@ class ImageEmbed:
                 if embed.footer and embed.footer.text == "Twitter":
                     if url == embed.url:
                         return None
+        imageobj = await self.fetch_image_fileobject(tweet_status["mediaDetails"][0]["media_url_https"] + "?name=large", "https://twitter.com/")
         embed = discord.Embed(
             description = tweet_status["text"],
             color = 1942002,
             url = url
         )
         embed.set_footer(text="Twitter", icon_url="https://abs.twimg.com/icons/apple-touch-icon-192x192.png")
-        embed.set_image(url=tweet_status["mediaDetails"][0]["media_url_https"] + "?name=large")
+        embed.set_image(url="attachment://{}".format(imageobj.filename))
         embed.set_author(
             name="{} ({})".format(tweet_status["user"]["name"], tweet_status["user"]["screen_name"]),
             url="https://twitter.com/{}".format(tweet_status["user"]["screen_name"]),
@@ -177,7 +183,7 @@ class ImageEmbed:
         )
         #embed.add_field(name="Retweets", value=tweet_status.retweet_count, inline=True)
         embed.add_field(name="Likes", value=tweet_status["favorite_count"], inline=True)
-        return embed, None
+        return embed, imageobj
     
     async def get_deviantart_embed(self, url, message, force_ignore_embeds):
         da_link = self.deviantart_pattern.search(url)
@@ -225,6 +231,7 @@ class ImageEmbed:
                 description = tag.get("content", None)
         if image is None:
             return None
+        imageobj = await self.fetch_image_fileobject(image, "https://bsky.social/")
         embed = discord.Embed(
             description = description,
             color = 686847,
@@ -232,8 +239,8 @@ class ImageEmbed:
             title = title
         )
         embed.set_footer(text="Bluesky", icon_url="https://bsky.social/about/images/favicon-32x32.png")
-        embed.set_image(url=image)
-        return embed, None
+        embed.set_image(url="attachment://{}".format(imageobj.filename))
+        return embed, imageobj
 
     async def fetch_bsky(self, username, postid):
         headers = {
@@ -281,41 +288,16 @@ class ImageEmbed:
                     if len(response.get("image_proxy_urls", [])):
                         image = response["image_proxy_urls"][0]
         if image is not None:
-            file_extension = image.split(".")[-1]
-            headers = {
-                "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
-                "accept-language": "en-US,en;q=0.9",
-                "referer": "https://www.pixiv.net/"
-            }
-            async with self.httpsession.get(image, headers=headers) as resp:
-                file_object = io.BytesIO(await resp.read())
-                file_object.seek(0)
+            file_object = await self.fetch_image_fileobject(image, "https://www.pixiv.net/")
         else:
             image = self.pixiv_oembed_fallback_url.format(pixiv_id)
-            async with self.httpsession.get(image) as resp:
-                file_object = io.BytesIO(await resp.read())
-                file_object.seek(0)
-                content_type = resp.headers.get("content-type")
-                if content_type == "image/png":
-                    file_extension = "png"
-                elif content_type == "image/jpg":
-                    file_extension = "jpg"
-                elif content_type == "image/jpeg":
-                    file_extension = "jpeg"
-                elif content_type == "image/gif":
-                    file_extension = "gif"
-                else:
-                    print("Unknown content type {}".format(content_type))
-        if file_extension is None:
-            return None
-        file_name = "image.{}".format(file_extension)
-        discord_file = discord.File(file_object, file_name)
-        embed.set_image(url="attachment://{}".format(file_name))
+            file_object = await self.fetch_image_fileobject(image, "https://www.pixiv.net/")
+        embed.set_image(url="attachment://{}".format(file_object.filename))
         embed.set_author(
             name="{}".format(pixiv["userName"]),
             url="https://www.pixiv.net/en/users/{}".format(pixiv["userId"])
         )
-        return embed, discord_file
+        return embed, file_object
 
     async def fetch_pixiv(self, pixiv_id):
         now = datetime.datetime.now()
@@ -390,4 +372,21 @@ class ImageEmbed:
                 "mediaDetails": media_details
             }
         return None
+
+    async def fetch_image_fileobject(self, url, referer):
+        headers = {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
+            "accept-language": "en-US,en;q=0.9",
+            "referer": referer
+        }
+        async with self.httpsession.get(url, headers=headers) as resp:
+            file_object = io.BytesIO(await resp.read())
+            file_object.seek(0)
+            content_type = resp.headers.get("content-type")
+            extension = mimetypes.guess_extension(content_type)
+            if extension == ".jpe":
+                extension = ".jpg"
+            file_name = "image{}".format(extension)
+            discord_file = discord.File(file_object, file_name)
+            return discord_file
 
