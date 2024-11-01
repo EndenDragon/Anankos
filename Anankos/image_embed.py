@@ -223,7 +223,9 @@ class ImageEmbed:
         image = None
         title = None
         for tag in bsky.find_all("meta"):
-            if image is None and tag.get("property", None) == "twitter:image":
+            if image is None and tag.get("property", None) == "og:video" and tag.get("content", None).startswith("http"):
+                image = tag.get("content", None)
+            if image is None and tag.get("property", None) == "twitter:image" and tag.get("content", None).startswith("http"):
                 image = tag.get("content", None)
             if tag.get("property", None) == "og:title":
                 title = tag.get("content", None)
