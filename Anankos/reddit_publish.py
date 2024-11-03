@@ -23,6 +23,9 @@ class RedditPublish:
         self.bg_task = self.client.loop.create_task(self.background_task())
 
     async def background_task(self):
+        while not self.client.is_closed():
+            await asyncio.sleep(120)
+        return
         await self.client.wait_until_ready()
         last_created = None
         while not self.client.is_closed():
