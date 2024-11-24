@@ -10,6 +10,7 @@ import io
 from markdownify import markdownify
 from bs4 import BeautifulSoup
 import mimetypes
+from urllib.parse import urljoin, urlparse
 
 class ImageEmbed:
     def __init__(self, client, channel_ids, twitter_consumer_key, twitter_consumer_secret, twitter_access_token_key, twitter_access_token_secret):
@@ -156,7 +157,7 @@ class ImageEmbed:
         if not twitter_id:
             return None
         twitter_id = int(twitter_id.group(1))
-        tweet_status = await self.fetch_fxtwitter(twitter_id)
+        tweet_status = await self.fetch_vxtwitter(twitter_id)
         if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
             tweet_status = await self.fetch_vxtwitter(twitter_id)
             if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
@@ -175,7 +176,8 @@ class ImageEmbed:
             url = url
         )
         embed.set_footer(text="Twitter", icon_url="https://abs.twimg.com/icons/apple-touch-icon-192x192.png")
-        embed.set_image(url="attachment://{}".format(imageobj.filename))
+        if "mp4" not in imageobj.filename:
+            embed.set_image(url="attachment://{}".format(imageobj.filename))
         embed.set_author(
             name="{} ({})".format(tweet_status["user"]["name"], tweet_status["user"]["screen_name"]),
             url="https://twitter.com/{}".format(tweet_status["user"]["screen_name"]),
@@ -340,7 +342,9 @@ class ImageEmbed:
             media_details = [] if not result["tweet"].get("media", None) or not len(result["tweet"]["media"]["all"]) or result["tweet"]["media"]["all"][0].get("type", None) != "photo" else [{"media_url_https": result["tweet"]["media"]["all"][0]["url"]}]
             if media_details and result["tweet"]["media"].get("mosaic", None) and result["tweet"]["media"]["mosaic"].get("formats", None) and result["tweet"]["media"]["mosaic"]["formats"].get("jpeg", None):
                 media_details = [{"media_url_https": result["tweet"]["media"]["mosaic"]["formats"]["jpeg"]}]
-            if len(media_details) == 0 and result["tweet"].get("media", None) and result["tweet"]["media"].get("all", None) and len(result["tweet"]["media"]["all"]) and result["tweet"]["media"]["all"][0].get("thumbnail_url", None):
+            if len(media_details) == 0 and result["tweet"].get("media", None) and result["tweet"]["media"].get("all", None) and len(result["tweet"]["media"]["all"]) and result["tweet"]["media"]["all"][0].get("url", None):
+                media_details = [{"media_url_https": result["tweet"]["media"]["all"][0]["url"]}]
+            elif len(media_details) == 0 and result["tweet"].get("media", None) and result["tweet"]["media"].get("all", None) and len(result["tweet"]["media"]["all"]) and result["tweet"]["media"]["all"][0].get("thumbnail_url", None):
                 media_details = [{"media_url_https": result["tweet"]["media"]["all"][0]["thumbnail_url"]}]
             return {
                 "user": {
@@ -365,7 +369,9 @@ class ImageEmbed:
             media_details = [] if not result.get("media_extended", None) or not len(result["media_extended"]) or result["media_extended"][0].get("type", None) != "image" else [{"media_url_https": result["media_extended"][0]["url"]}]
             if media_details and result.get("combinedMediaUrl", None):
                 media_details = [{"media_url_https": result["combinedMediaUrl"]}]
-            if len(media_details) == 0 and result.get("media_extended", None) and len(result["media_extended"]) and result["media_extended"][0].get("thumbnail_url", None):
+            if len(media_details) == 0 and result.get("media_extended", None) and len(result["media_extended"]) and result["media_extended"][0].get("url", None):
+                media_details = [{"media_url_https": result["media_extended"][0]["url"]}]
+            elif len(media_details) == 0 and result.get("media_extended", None) and len(result["media_extended"]) and result["media_extended"][0].get("thumbnail_url", None):
                 media_details = [{"media_url_https": result["media_extended"][0]["thumbnail_url"]}]
             return {
                 "user": {
@@ -385,11 +391,14 @@ class ImageEmbed:
             "accept-language": "en-US,en;q=0.9",
             "referer": referer
         }
+        if "twimg" in url and "mp4" in url:
+            url = urljoin(url, urlparse(url).path)
         async with self.httpsession.get(url, headers=headers) as resp:
             file_object = io.BytesIO(await resp.read())
             file_object.seek(0)
             content_type = resp.headers.get("content-type")
             if content_type == None:
+                url = urljoin(url, urlparse(url).path)
                 extension = "." + url.split(".")[-1]
                 if len(extension) > 5:
                     extension = ".png"
