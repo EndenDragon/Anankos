@@ -377,7 +377,7 @@ class ImageEmbed:
                 "user": {
                     "name": result["user_name"],
                     "screen_name": result["user_screen_name"],
-                    "profile_image_url_https": "https://abs.twimg.com/icons/apple-touch-icon-192x192.png",
+                    "profile_image_url_https": result["user_profile_image_url"],
                 },
                 "text": result["text"],
                 "favorite_count": result["likes"],
