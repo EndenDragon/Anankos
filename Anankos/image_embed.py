@@ -243,7 +243,8 @@ class ImageEmbed:
             title = title
         )
         embed.set_footer(text="Bluesky", icon_url="https://bsky.social/about/images/favicon-32x32.png")
-        embed.set_image(url="attachment://{}".format(imageobj.filename))
+        if "mp4" not in imageobj.filename:
+            embed.set_image(url="attachment://{}".format(imageobj.filename))
         return embed, imageobj
 
     async def fetch_bsky(self, username, postid):
