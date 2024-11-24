@@ -340,6 +340,8 @@ class ImageEmbed:
             media_details = [] if not result["tweet"].get("media", None) or not len(result["tweet"]["media"]["all"]) or result["tweet"]["media"]["all"][0].get("type", None) != "photo" else [{"media_url_https": result["tweet"]["media"]["all"][0]["url"]}]
             if media_details and result["tweet"]["media"].get("mosaic", None) and result["tweet"]["media"]["mosaic"].get("formats", None) and result["tweet"]["media"]["mosaic"]["formats"].get("jpeg", None):
                 media_details = [{"media_url_https": result["tweet"]["media"]["mosaic"]["formats"]["jpeg"]}]
+            if len(media_details) == 0 and result["tweet"].get("media", None) and result["tweet"]["media"].get("all", None) and len(result["tweet"]["media"]["all"]) and result["tweet"]["media"]["all"][0].get("thumbnail_url", None):
+                media_details = [{"media_url_https": result["tweet"]["media"]["all"][0]["thumbnail_url"]}]
             return {
                 "user": {
                     "name": result["tweet"]["author"]["name"],
@@ -363,6 +365,8 @@ class ImageEmbed:
             media_details = [] if not result.get("media_extended", None) or not len(result["media_extended"]) or result["media_extended"][0].get("type", None) != "image" else [{"media_url_https": result["media_extended"][0]["url"]}]
             if media_details and result.get("combinedMediaUrl", None):
                 media_details = [{"media_url_https": result["combinedMediaUrl"]}]
+            if len(media_details) == 0 and result.get("media_extended", None) and len(result["media_extended"]) and result["media_extended"][0].get("thumbnail_url", None):
+                media_details = [{"media_url_https": result["media_extended"][0]["thumbnail_url"]}]
             return {
                 "user": {
                     "name": result["user_name"],
@@ -385,7 +389,12 @@ class ImageEmbed:
             file_object = io.BytesIO(await resp.read())
             file_object.seek(0)
             content_type = resp.headers.get("content-type")
-            extension = mimetypes.guess_extension(content_type)
+            if content_type == None:
+                extension = "." + url.split(".")[-1]
+                if len(extension) > 5:
+                    extension = ".png"
+            else:
+                extension = mimetypes.guess_extension(content_type)
             if extension == ".jpe":
                 extension = ".jpg"
             file_name = "image{}".format(extension)
