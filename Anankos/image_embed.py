@@ -157,7 +157,7 @@ class ImageEmbed:
         if not twitter_id:
             return None
         twitter_id = int(twitter_id.group(1))
-        tweet_status = await self.fetch_vxtwitter(twitter_id)
+        tweet_status = await self.fetch_fxtwitter(twitter_id)
         if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
             tweet_status = await self.fetch_vxtwitter(twitter_id)
             if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
