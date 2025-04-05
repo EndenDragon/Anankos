@@ -228,8 +228,8 @@ class ImageEmbed:
         description = bsky["record"].get("text", None)
         image = None
         title = "{} (@{})".format(bsky["author"]["displayName"], bsky["author"]["handle"])
-        if bsky.get("embed", None) and bsky["embed"].get("media") and bsky["embed"]["media"]["$type"] == "app.bsky.embed.images#view":
-            image = bsky["embed"]["media"]["images"][0]["fullsize"]
+        if bsky.get("embed", None) and bsky["embed"]["$type"] == "app.bsky.embed.images#view":
+            image = bsky["embed"]["images"][0]["fullsize"]
         if bsky.get("embed", None) and bsky["embed"]["$type"] == "app.bsky.embed.video#view":
             tmp_name = None
             with tempfile.NamedTemporaryFile(prefix="ana_bsky_", suffix=".mp4") as tmp:
