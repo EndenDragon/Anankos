@@ -7,10 +7,13 @@ import aiohttp
 import twitter
 import datetime
 import io
+import os
 from markdownify import markdownify
 from bs4 import BeautifulSoup
 import mimetypes
 from urllib.parse import urljoin, urlparse
+import ffmpeg
+import tempfile
 
 class ImageEmbed:
     def __init__(self, client, channel_ids, twitter_consumer_key, twitter_consumer_secret, twitter_access_token_key, twitter_access_token_secret):
@@ -39,7 +42,7 @@ class ImageEmbed:
         self.pixiv_oembed_fallback_url = "https://embed.pixiv.net/decorate.php?illust_id={}"
         self.phixiv_url = "https://www.phixiv.net/api/info?id={}&language=en"
 
-        self.bsky_url = "https://fxbsky.app/profile/{}/post/{}"
+        self.bsky_url = "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2F{}%2Fapp.bsky.feed.post%2F{}"
 
     def should_spoiler(self, url, content):
         if url.endswith("||"):
@@ -221,21 +224,33 @@ class ImageEmbed:
         bsky = await self.fetch_bsky(username, postid)
         if not bsky:
             return None
-        description = None
+        bsky = bsky["thread"]["post"]
+        description = bsky["record"].get("text", None)
         image = None
-        title = None
-        for tag in bsky.find_all("meta"):
-            if image is None and tag.get("property", None) == "og:video" and tag.get("content", None).startswith("http"):
-                image = tag.get("content", None)
-            if image is None and tag.get("property", None) == "twitter:image" and tag.get("content", None).startswith("http"):
-                image = tag.get("content", None)
-            if tag.get("property", None) == "og:title":
-                title = tag.get("content", None)
-            if tag.get("property", None) == "og:description":
-                description = tag.get("content", None)
+        title = "{} (@{})".format(bsky["author"]["displayName"], bsky["author"]["handle"])
+        if bsky.get("embed", None) and bsky["embed"].get("media") and bsky["embed"]["media"]["$type"] == "app.bsky.embed.images#view":
+            image = bsky["embed"]["media"]["images"][0]["fullsize"]
+        if bsky.get("embed", None) and bsky["embed"]["$type"] == "app.bsky.embed.video#view":
+            tmp_name = None
+            with tempfile.NamedTemporaryFile(prefix="ana_bsky_", suffix=".mp4") as tmp:
+                tmp_name = tmp.name
+            (
+                ffmpeg
+                .input(bsky["embed"]["playlist"])
+                .output(tmp_name, vcodec="copy")
+                .run()
+            )
+            with open(tmp_name, "rb") as file:
+                file_object = io.BytesIO(file.read())
+                file_object.seek(0)
+                image = discord.File(file_object, "image.mp4")
+            os.remove(tmp_name)
         if image is None:
             return None
-        imageobj = await self.fetch_image_fileobject(image, "https://bsky.social/")
+        if type(image) == str:
+            imageobj = await self.fetch_image_fileobject(image, "https://bsky.social/")
+        else:
+            imageobj = image
         embed = discord.Embed(
             description = description,
             color = 686847,
@@ -256,8 +271,8 @@ class ImageEmbed:
         async with self.httpsession.get(self.bsky_url.format(username, postid), headers=headers) as resp:
             if resp.status < 200 or resp.status >= 300:
                 return None
-            result = await resp.text()
-            return BeautifulSoup(result, features="html.parser")
+            result = await resp.json()
+            return result
         return None
 
     async def get_pixiv_embed(self, url, message, force_ignore_embeds):
