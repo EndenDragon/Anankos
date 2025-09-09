@@ -11,7 +11,7 @@ import os
 from markdownify import markdownify
 from bs4 import BeautifulSoup
 import mimetypes
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urlunparse, parse_qsl, urlencode
 import ffmpeg
 import tempfile
 
@@ -172,7 +172,8 @@ class ImageEmbed:
                 if embed.footer and embed.footer.text == "Twitter":
                     if url == embed.url:
                         return None
-        imageobj = await self.fetch_image_fileobject(tweet_status["mediaDetails"][0]["media_url_https"] + "?name=large", "https://twitter.com/")
+        media_url = self.set_query_param(tweet_status["mediaDetails"][0]["media_url_https"], "name", "large", keep_others=True)
+        imageobj = await self.fetch_image_fileobject(media_url, "https://twitter.com/")
         embed = discord.Embed(
             description = tweet_status["text"],
             color = 1942002,
@@ -425,4 +426,14 @@ class ImageEmbed:
             file_name = "image{}".format(extension)
             discord_file = discord.File(file_object, file_name)
             return discord_file
+
+    def set_query_param(self, url, key, value, keep_others=True):
+        p = urlparse(url)
+        if keep_others:
+            q = dict(parse_qsl(p.query, keep_blank_values=True))
+            q[key] = value
+            query = urlencode(q, doseq=True)
+        else:
+            query = urlencode({key: value})
+        return urlunparse((p.scheme, p.netloc, p.path, p.params, query, p.fragment))
 
