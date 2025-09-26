@@ -4,6 +4,7 @@ import html
 import discord
 import asyncio
 import asyncpraw
+import time
 
 class RedditPublish:
     def __init__(self, client, source_chan_id, dest_chan_id, client_id, client_secret):
@@ -29,9 +30,16 @@ class RedditPublish:
             try:
                 subreddit = await self.reddit.subreddit("CorrinConclave")
                 async for submission in subreddit.stream.submissions(skip_existing=True):
+                    if hasattr(submission, "created_utc") and submission.created_utc:
+                        if abs(time.time() - submission.created_utc) > 600: # 10 minutes in seconds
+                            print("skipped too old" + " https://reddit.com" + submission.permalink)
+                            continue
+                    else:
+                        continue
                     try:
                         permalink = "https://reddit.com" + submission.permalink
                         embed = await self.get_rich_embed(permalink)
+                        print(embed)
                         if embed:
                             channel = self.client.get_channel(self.source_chan_id)
                             await channel.send(embed=embed)
@@ -85,10 +93,11 @@ class RedditPublish:
         subreddit_name = result.subreddit.name
         image_url = None
         text = result.selftext
-        print(result.preview)
-        if result.preview and result.preview["images"] and len(result.preview["images"]):
+        if hasattr(result, "preview"):
+            print(result.preview)
+        if hasattr(result, "preview") and result.preview and result.preview["images"] and len(result.preview["images"]):
             image_url = result.preview["images"][0]["source"]["url"]
-        elif result.media_metadata:
+        elif hasattr(result, "media_metadata") and result.media_metadata:
             key = list(result.media_metadata.keys())[0]
             image_url = result.media_metadata[key]["s"]["u"]
         if image_url:
