@@ -350,7 +350,7 @@ class ArtMention:
             if character in existing:
                 fail_already_subbed.append(character)
                 continue
-            if not character.isalnum():
+            if not all(c.isalnum() or c == '_' for c in character):
                 fail_illegal_format.append(character)
                 continue
             await self.subscribe_user(message.author.id, character)
