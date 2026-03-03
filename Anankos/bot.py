@@ -16,6 +16,7 @@ from Anankos.automod import AutoMod
 from Anankos.art_deduper import ArtDeduper
 from Anankos.edit_link_filter import EditLinkFilter
 from Anankos.poll_manager import PollManager
+from Anankos.role_mass_assign import RoleMassAssign
 
 import discord
 import aiosqlite
@@ -53,6 +54,7 @@ class Anankos(discord.Client):
         self.art_deduper = ArtDeduper(self, config.get("deduper_channelids", []))
         self.edit_link_filter = EditLinkFilter(self, config.get("elf_links", []))
         self.poll_manager = PollManager(self, config.get("poll_channelid"))
+        self.role_mass_assign = RoleMassAssign(self)
 
     async def on_connect(self):
         if self.db is None:
@@ -82,6 +84,7 @@ class Anankos(discord.Client):
         self.loop.create_task(self.automod.on_message(message))
         self.loop.create_task(self.art_deduper.on_message(message))
         self.loop.create_task(self.poll_manager.on_message(message))
+        self.loop.create_task(self.role_mass_assign.on_message(message))
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)
