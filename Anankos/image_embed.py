@@ -477,7 +477,7 @@ class ImageEmbed:
 
     async def fetch_image_fileobject(self, url, referer):
         headers = {
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
             "accept-language": "en-US,en;q=0.9",
             "referer": referer
         }
