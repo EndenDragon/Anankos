@@ -220,51 +220,121 @@ class ImageEmbed:
         bsky_link = self.bsky_pattern.search(url)
         if not bsky_link:
             return None
+
         username = bsky_link.group(1)
         postid = bsky_link.group(2)
-        bsky = await self.fetch_bsky(username, postid)
-        if not bsky:
+
+        data = await self.fetch_bsky(username, postid)
+        if not data or "thread" not in data or "post" not in data["thread"]:
             return None
-        bsky = bsky["thread"]["post"]
-        description = bsky["record"].get("text", None)
-        image = None
-        title = "{} (@{})".format(bsky["author"]["displayName"], bsky["author"]["handle"])
-        bmedia = bsky.get("embed", None)
-        if bmedia.get("media", None):
-            bmedia = bmedia["media"]
-        if bmedia is not None and bmedia["$type"] == "app.bsky.embed.images#view":
-            image = bmedia["images"][0]["fullsize"]
-        if bmedia and bmedia["$type"] == "app.bsky.embed.video#view":
-            tmp_name = None
-            with tempfile.NamedTemporaryFile(prefix="ana_bsky_", suffix=".mp4") as tmp:
-                tmp_name = tmp.name
-            (
-                ffmpeg
-                .input(bmedia["playlist"])
-                .output(tmp_name, vcodec="copy")
-                .run()
-            )
-            with open(tmp_name, "rb") as file:
-                file_object = io.BytesIO(file.read())
-                file_object.seek(0)
-                image = discord.File(file_object, "image.mp4")
-            os.remove(tmp_name)
-        if image is None:
-            return None
-        if type(image) == str:
-            imageobj = await self.fetch_image_fileobject(image, "https://bsky.social/")
-        else:
-            imageobj = image
-        embed = discord.Embed(
-            description = description,
-            color = 686847,
-            url = url,
-            title = title
+
+        post = data["thread"]["post"]
+
+        description = post.get("record", {}).get("text", None)
+        author = post.get("author", {})
+
+        title = "{} (@{})".format(
+            author.get("displayName") or author.get("handle") or "Unknown",
+            author.get("handle", "unknown")
         )
-        embed.set_footer(text="Bluesky", icon_url="https://bsky.social/about/images/favicon-32x32.png")
-        if "mp4" not in imageobj.filename:
-            embed.set_image(url="attachment://{}".format(imageobj.filename))
-        return embed, imageobj
+
+        # ---- duplicate prevention ----
+        if message not in self.forced_embeds and not force_ignore_embeds:
+            for embed in message.embeds:
+                if embed.footer and embed.footer.text == "Bluesky":
+                    if url == embed.url:
+                        return None
+
+        embed_data = post.get("embed")
+
+        # unwrap recordWithMedia
+        if embed_data and embed_data.get("$type") == "app.bsky.embed.recordWithMedia#view":
+            embed_data = embed_data.get("media")
+
+        imageobj = None
+        image_url = None
+
+        # ---------------- IMAGES ----------------
+        if embed_data and embed_data.get("$type") == "app.bsky.embed.images#view":
+            images = embed_data.get("images", [])
+            if not images:
+                return None
+
+            image_url = images[0].get("fullsize")
+            if not image_url:
+                return None
+
+        # ---------------- VIDEO ----------------
+        elif embed_data and embed_data.get("$type") == "app.bsky.embed.video#view":
+            playlist = embed_data.get("playlist")
+
+            if not playlist:
+                return None
+
+            try:
+                tmp_fd, tmp_name = tempfile.mkstemp(suffix=".mp4")
+                os.close(tmp_fd)
+
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg",
+                    "-y",
+                    "-loglevel", "error",
+                    "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+                    "-i", playlist,
+                    "-c:v", "copy",
+                    "-c:a", "copy",
+                    "-bsf:a", "aac_adtstoasc",
+                    tmp_name,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+
+                _, stderr = await proc.communicate()
+
+                if proc.returncode != 0 or not os.path.exists(tmp_name) or os.path.getsize(tmp_name) == 0:
+                    os.remove(tmp_name)
+                    return None
+
+                with open(tmp_name, "rb") as f:
+                    buffer = io.BytesIO(f.read())
+                    buffer.seek(0)
+
+                    # ✅ Correct filename → Discord recognizes as video
+                    imageobj = discord.File(buffer, filename="video.mp4")
+
+                os.remove(tmp_name)
+
+            except Exception:
+                return None
+
+        else:
+            return None
+
+        # ---------------- BUILD EMBED ----------------
+        embed = discord.Embed(
+            description=description,
+            color=686847,
+            url=url,
+            title=title
+        )
+
+        embed.set_footer(
+            text="Bluesky",
+            icon_url="https://bsky.social/about/images/favicon-32x32.png"
+        )
+
+        # ---------------- FINAL BEHAVIOR ----------------
+        if image_url:
+            # ✅ IMAGE → embed only (NO attachment)
+            embed.set_image(url=image_url)
+            return embed, None
+
+        elif imageobj:
+            # ✅ VIDEO → attach file
+            embed.description = description or ""
+            return embed, imageobj
+
+        return None
 
     async def fetch_bsky(self, username, postid):
         headers = {
@@ -407,79 +477,100 @@ class ImageEmbed:
 
     async def fetch_image_fileobject(self, url, referer):
         headers = {
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
             "accept-language": "en-US,en;q=0.9",
             "referer": referer
         }
         if "twimg" in url and "mp4" in url:
             url = urljoin(url, urlparse(url).path)
+
+        # ---- fetch ----
         async with self.httpsession.get(url, headers=headers) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                return None  # network fail → return None
+
             raw_bytes = await resp.read()
-            content_type = resp.headers.get("content-type")
+            content_type = resp.headers.get("content-type", "").lower()
 
-        # ---------------- VIDEO HANDLING ----------------
-        if content_type and content_type.startswith("video"):
-            with tempfile.NamedTemporaryFile(suffix=".mp4") as video_tmp:
-                video_tmp.write(raw_bytes)
-                video_tmp.flush()
-
-                # ---- async ffprobe: get duration ----
-                probe_proc = await asyncio.create_subprocess_exec(
-                    "ffprobe",
-                    "-v", "error",
-                    "-show_entries", "format=duration",
-                    "-of", "default=noprint_wrappers=1:nokey=1",
-                    video_tmp.name,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-
-                stdout, _ = await probe_proc.communicate()
-
-                try:
-                    duration = float(stdout.decode().strip())
-                except Exception:
-                    duration = None
-
-                # ---- if video < 1 second, extract first frame ----
-                if duration is not None and duration < 1.0:
-                    with tempfile.NamedTemporaryFile(suffix=".png") as frame_tmp:
-                        ffmpeg_proc = await asyncio.create_subprocess_exec(
-                            "ffmpeg",
-                            "-y",
-                            "-i", video_tmp.name,
-                            "-frames:v", "1",
-                            frame_tmp.name,
-                            stdout=asyncio.subprocess.DEVNULL,
-                            stderr=asyncio.subprocess.DEVNULL,
-                        )
-
-                        await ffmpeg_proc.communicate()
-
-                        frame_tmp.seek(0)
-                        frame_bytes = frame_tmp.read()
-
-                        if frame_bytes:
-                            file_object = io.BytesIO(frame_bytes)
-                            file_object.seek(0)
-                            return discord.File(file_object, "image.png")
-
-        # ---------------- IMAGE / VIDEO FALLBACK ----------------
         file_object = io.BytesIO(raw_bytes)
         file_object.seek(0)
 
-        if content_type is None:
-            url = urljoin(url, urlparse(url).path)
-            extension = "." + url.split(".")[-1]
-            if len(extension) > 5:
-                extension = ".png"
-        else:
+        # ---------------- VIDEO HANDLING ----------------
+        if content_type.startswith("video"):
+            # Write to temp for processing
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".mp4") as video_tmp:
+                    video_tmp.write(raw_bytes)
+                    video_tmp.flush()
+
+                    # ---- probe duration ----
+                    probe_proc = await asyncio.create_subprocess_exec(
+                        "ffprobe",
+                        "-v", "error",
+                        "-show_entries", "format=duration",
+                        "-of", "default=noprint_wrappers=1:nokey=1",
+                        video_tmp.name,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+
+                    stdout, _ = await probe_proc.communicate()
+
+                    try:
+                        duration = float(stdout.decode().strip())
+                    except Exception:
+                        duration = None
+
+                    # ---- very short video → extract first frame ----
+                    if duration is not None and duration < 1.0:
+                        with tempfile.NamedTemporaryFile(suffix=".png") as frame_tmp:
+                            ffmpeg_proc = await asyncio.create_subprocess_exec(
+                                "ffmpeg",
+                                "-y",
+                                "-i", video_tmp.name,
+                                "-frames:v", "1",
+                                frame_tmp.name,
+                                stdout=asyncio.subprocess.DEVNULL,
+                                stderr=asyncio.subprocess.DEVNULL,
+                            )
+                            await ffmpeg_proc.communicate()
+
+                            frame_tmp.seek(0)
+                            frame_bytes = frame_tmp.read()
+                            if frame_bytes:
+                                file_object = io.BytesIO(frame_bytes)
+                                file_object.seek(0)
+                                return discord.File(file_object, "image.png")
+
+                # fallback to full video if frame extraction failed
+                return discord.File(io.BytesIO(raw_bytes), "video.mp4")
+
+            except Exception:
+                # even if ffmpeg fails, attach video as fallback
+                return discord.File(io.BytesIO(raw_bytes), "video.mp4")
+
+        # ---------------- IMAGE HANDLING ----------------
+        extension = None
+
+        # 1️⃣ trust MIME type if valid
+        if content_type.startswith("image/"):
             extension = mimetypes.guess_extension(content_type)
+
+        # 2️⃣ fallback from URL
+        if not extension:
+            path = urlparse(url).path
+            if "." in path:
+                ext_candidate = "." + path.split(".")[-1].lower()
+                if ext_candidate in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
+                    extension = ext_candidate
+
+        # 3️⃣ final fallback
+        if not extension:
+            extension = ".jpg"
         if extension == ".jpe":
             extension = ".jpg"
 
-        file_name = f"image{extension}"
-        return discord.File(file_object, file_name)
+        return discord.File(file_object, filename=f"image{extension}")
 
     def set_query_param(self, url, key, value, keep_others=True):
         p = urlparse(url)
