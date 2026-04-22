@@ -4,7 +4,6 @@ from urlextract import URLExtract
 from collections import deque
 import asyncio
 import aiohttp
-import twitter
 import datetime
 import io
 import os
@@ -16,24 +15,24 @@ import ffmpeg
 import tempfile
 
 class ImageEmbed:
-    def __init__(self, client, channel_ids, twitter_consumer_key, twitter_consumer_secret, twitter_access_token_key, twitter_access_token_secret):
+    def __init__(self, client, channel_ids):
         self.client = client
         self.channel_ids = channel_ids
         self.extractor = URLExtract()
-        self.httpsession = aiohttp.ClientSession()
+        self.httpsession = None
         self.message_cache = deque(maxlen=100)
         self.forced_embeds = deque(maxlen=100)
         self.ready = asyncio.Event()
 
         self.ready.set()
 
-        self.twitter_pattern = re.compile("twitter.com/\w+/status/(\d+)")
-        self.deviantart_pattern = re.compile("deviantart\.com.*.\d")
-        self.pixiv_pattern = re.compile("www\.pixiv\.net\/en\/artworks\/(\d+)")
-        self.bsky_pattern = re.compile("bsky.app\/profile\/(.+)\/post\/(\w+)")
+        self.twitter_pattern = re.compile(r"twitter.com/\w+/status/(\d+)")
+        self.deviantart_pattern = re.compile(r"deviantart\.com.*.\d")
+        self.pixiv_pattern = re.compile(r"www\.pixiv\.net/en/artworks/(\d+)")
+        self.bsky_pattern = re.compile(r"bsky.app/profile/(.+)/post/(\w+)")
 
         self.deviantart_url = "https://backend.deviantart.com/oembed?url={}"
-        
+
         self.twitter_url = "https://cdn.syndication.twimg.com/tweet-result?features=tfw_timeline_list%3A%3Btfw_follower_count_sunset%3Atrue%3Btfw_tweet_edit_backend%3Aon%3Btfw_refsrc_session%3Aon%3Btfw_fosnr_soft_interventions_enabled%3Aon%3Btfw_mixed_media_15897%3Atreatment%3Btfw_experiments_cookie_expiration%3A1209600%3Btfw_show_birdwatch_pivots_enabled%3Aon%3Btfw_duplicate_scribes_to_settings%3Aon%3Btfw_use_profile_image_shape_enabled%3Aon%3Btfw_video_hls_dynamic_manifests_15082%3Atrue_bitrate%3Btfw_legacy_timeline_sunset%3Atrue%3Btfw_tweet_edit_frontend%3Aon&id={}&lang=en&token={}"
         self.fxtwitter_url = "https://api.fxtwitter.com/user/status/{}"
         self.vxtwitter_url = "https://api.vxtwitter.com/user/status/{}"
@@ -44,11 +43,18 @@ class ImageEmbed:
 
         self.bsky_url = "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2F{}%2Fapp.bsky.feed.post%2F{}"
 
+    def start_sessions(self):
+        self.httpsession = aiohttp.ClientSession()
+
+    async def close(self):
+        if self.httpsession and not self.httpsession.closed:
+            await self.httpsession.close()
+
     def should_spoiler(self, url, content):
         if url.endswith("||"):
             return True
         url = re.escape(url)
-        match = re.search("\|\|\s*{}\s+\|\|".format(url), content)
+        match = re.search(r"\|\|\s*{}\s+\|\|".format(url), content)
         if match:
             return True
         return False
@@ -164,9 +170,7 @@ class ImageEmbed:
         if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
             tweet_status = await self.fetch_vxtwitter(twitter_id)
             if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
-                tweet_status = await self.fetch_twitter(twitter_id)
-                if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
-                    return None
+                return None
         if message not in self.forced_embeds and not force_ignore_embeds:
             for embed in message.embeds:
                 if embed.footer and embed.footer.text == "Twitter":
@@ -187,10 +191,9 @@ class ImageEmbed:
             url="https://twitter.com/{}".format(tweet_status["user"]["screen_name"]),
             icon_url=tweet_status["user"]["profile_image_url_https"]
         )
-        #embed.add_field(name="Retweets", value=tweet_status.retweet_count, inline=True)
         embed.add_field(name="Likes", value=tweet_status["favorite_count"], inline=True)
         return embed, imageobj
-    
+
     async def get_deviantart_embed(self, url, message, force_ignore_embeds):
         da_link = self.deviantart_pattern.search(url)
         if not da_link:
@@ -238,7 +241,6 @@ class ImageEmbed:
             author.get("handle", "unknown")
         )
 
-        # ---- duplicate prevention ----
         if message not in self.forced_embeds and not force_ignore_embeds:
             for embed in message.embeds:
                 if embed.footer and embed.footer.text == "Bluesky":
@@ -247,14 +249,12 @@ class ImageEmbed:
 
         embed_data = post.get("embed")
 
-        # unwrap recordWithMedia
         if embed_data and embed_data.get("$type") == "app.bsky.embed.recordWithMedia#view":
             embed_data = embed_data.get("media")
 
         imageobj = None
         image_url = None
 
-        # ---------------- IMAGES ----------------
         if embed_data and embed_data.get("$type") == "app.bsky.embed.images#view":
             images = embed_data.get("images", [])
             if not images:
@@ -264,7 +264,6 @@ class ImageEmbed:
             if not image_url:
                 return None
 
-        # ---------------- VIDEO ----------------
         elif embed_data and embed_data.get("$type") == "app.bsky.embed.video#view":
             playlist = embed_data.get("playlist")
 
@@ -299,7 +298,6 @@ class ImageEmbed:
                     buffer = io.BytesIO(f.read())
                     buffer.seek(0)
 
-                    # ✅ Correct filename → Discord recognizes as video
                     imageobj = discord.File(buffer, filename="video.mp4")
 
                 os.remove(tmp_name)
@@ -310,7 +308,6 @@ class ImageEmbed:
         else:
             return None
 
-        # ---------------- BUILD EMBED ----------------
         embed = discord.Embed(
             description=description,
             color=686847,
@@ -323,14 +320,11 @@ class ImageEmbed:
             icon_url="https://bsky.social/about/images/favicon-32x32.png"
         )
 
-        # ---------------- FINAL BEHAVIOR ----------------
         if image_url:
-            # ✅ IMAGE → embed only (NO attachment)
             embed.set_image(url=image_url)
             return embed, None
 
         elif imageobj:
-            # ✅ VIDEO → attach file
             embed.description = description or ""
             return embed, imageobj
 
@@ -407,20 +401,6 @@ class ImageEmbed:
             return result["body"]
         return None
 
-    async def fetch_twitter(self, tweet_id):
-        headers = {
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
-            "accept-language": "en-US,en;q=0.9",
-            "referer": "https://twitter.com/"
-        }
-        token = tweet_id
-        async with self.httpsession.get(self.twitter_url.format(tweet_id, token), headers=headers) as resp:
-            if resp.status < 200 or resp.status >= 300:
-                return None
-            result = await resp.json()
-            return result
-        return None
-
     async def fetch_fxtwitter(self, tweet_id):
         headers = {
             "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"
@@ -484,10 +464,9 @@ class ImageEmbed:
         if "twimg" in url and "mp4" in url:
             url = urljoin(url, urlparse(url).path)
 
-        # ---- fetch ----
         async with self.httpsession.get(url, headers=headers) as resp:
             if resp.status < 200 or resp.status >= 300:
-                return None  # network fail → return None
+                return None
 
             raw_bytes = await resp.read()
             content_type = resp.headers.get("content-type", "").lower()
@@ -495,15 +474,12 @@ class ImageEmbed:
         file_object = io.BytesIO(raw_bytes)
         file_object.seek(0)
 
-        # ---------------- VIDEO HANDLING ----------------
         if content_type.startswith("video"):
-            # Write to temp for processing
             try:
                 with tempfile.NamedTemporaryFile(suffix=".mp4") as video_tmp:
                     video_tmp.write(raw_bytes)
                     video_tmp.flush()
 
-                    # ---- probe duration ----
                     probe_proc = await asyncio.create_subprocess_exec(
                         "ffprobe",
                         "-v", "error",
@@ -521,7 +497,6 @@ class ImageEmbed:
                     except Exception:
                         duration = None
 
-                    # ---- very short video → extract first frame ----
                     if duration is not None and duration < 1.0:
                         with tempfile.NamedTemporaryFile(suffix=".png") as frame_tmp:
                             ffmpeg_proc = await asyncio.create_subprocess_exec(
@@ -542,21 +517,16 @@ class ImageEmbed:
                                 file_object.seek(0)
                                 return discord.File(file_object, "image.png")
 
-                # fallback to full video if frame extraction failed
                 return discord.File(io.BytesIO(raw_bytes), "video.mp4")
 
             except Exception:
-                # even if ffmpeg fails, attach video as fallback
                 return discord.File(io.BytesIO(raw_bytes), "video.mp4")
 
-        # ---------------- IMAGE HANDLING ----------------
         extension = None
 
-        # 1️⃣ trust MIME type if valid
         if content_type.startswith("image/"):
             extension = mimetypes.guess_extension(content_type)
 
-        # 2️⃣ fallback from URL
         if not extension:
             path = urlparse(url).path
             if "." in path:
@@ -564,7 +534,6 @@ class ImageEmbed:
                 if ext_candidate in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
                     extension = ext_candidate
 
-        # 3️⃣ final fallback
         if not extension:
             extension = ".jpg"
         if extension == ".jpe":
@@ -581,4 +550,3 @@ class ImageEmbed:
         else:
             query = urlencode({key: value})
         return urlunparse((p.scheme, p.netloc, p.path, p.params, query, p.fragment))
-

@@ -8,6 +8,8 @@ import aiohttp
 import mimetypes
 import io
 
+from discord.ext import tasks
+
 class Trivia:
     def __init__(self, client, enabled, channel_id, event_id, role_id, cooldown_min, cooldown_max):
         self.client = client
@@ -17,7 +19,7 @@ class Trivia:
         self.event_id = event_id
         self.cooldown_min = cooldown_min
         self.cooldown_max = cooldown_max
-        
+
         self.current_problemid = -1
         self.last_posted = datetime.datetime(2020, 1, 1)
         self.cooldown_expiration = datetime.datetime(2020, 1, 1)
@@ -32,8 +34,6 @@ class Trivia:
                     if len(row) == 7:
                         image = row[6]
                     self.questions.append(self.Question(row[0], row[1], row[2], row[3], row[4], row[5], image))
-
-        self.bg_task = self.client.loop.create_task(self.background_task())
 
         self.bg_task_qend = None
         self.current_winners = {}
@@ -82,7 +82,23 @@ class Trivia:
                 self.current_problemid = row[0]
                 self.last_posted = row[1]
                 self.cooldown_expiration = self.last_posted + datetime.timedelta(minutes=self.get_random_minutes())
-    
+
+    def start_tasks(self):
+        if self.enabled:
+            self.background_task.start()
+
+    @tasks.loop(seconds=60)
+    async def background_task(self):
+        if await self.question_is_answered() and datetime.datetime.now() > self.cooldown_expiration:
+            await self.post_next_question()
+        if self.current_problemid >= len(self.questions):
+            await self.client.get_channel(self.channel_id).send("Hey hey <@138881969185357825>, I'm all out of questions! Event over?!")
+            self.background_task.cancel()
+
+    @background_task.before_loop
+    async def before_background_task(self):
+        await self.client.wait_until_ready()
+
     async def on_message(self, message):
         if message.channel.id != self.channel_id or message.author == self.client.user:
             return
@@ -99,13 +115,11 @@ class Trivia:
     async def accept_message_answer(self, message):
         answer = message.content
         if await self.question_is_answered():
-            # await message.channel.send("This question has already been answered! Please wait for the next question.")
             return
         if self.current_problemid >= len(self.questions):
             return
         question = self.questions[self.current_problemid]
         if question.answer.lower() != answer.lower():
-            # await message.channel.send("wrong.")
             return
         if message.author in self.current_winners:
             return
@@ -124,18 +138,6 @@ class Trivia:
         )
         await self.client.db.commit()
         self.current_winners[message.author] = points
-
-    async def background_task(self):
-        if not self.enabled:
-            return
-        await self.client.wait_until_ready()
-        while not self.client.is_closed():
-            if await self.question_is_answered() and datetime.datetime.now() > self.cooldown_expiration:
-                await self.post_next_question()
-            if self.current_problemid >= len(self.questions):
-                await self.client.get_channel(self.channel_id).send("Hey hey <@138881969185357825>, I'm all out of questions! Event over?!")
-                return
-            await asyncio.sleep(60)
 
     async def close_answer_bg_task(self):
         while self.first_answer_timestamp == None or (datetime.datetime.now() - self.first_answer_timestamp).total_seconds() < 10:
@@ -174,7 +176,7 @@ class Trivia:
         embed, image_file = await self.get_question_embed()
         role = self.client.get_channel(self.channel_id).guild.get_role(self.role_id)
         await self.client.get_channel(self.channel_id).send("Look out {}! Next question is dropping in 30 seconds!".format(role.mention))
-        self.bg_task_qend = self.client.loop.create_task(self.close_answer_bg_task())
+        self.bg_task_qend = asyncio.create_task(self.close_answer_bg_task())
         await asyncio.sleep(30)
         message = await self.client.get_channel(self.channel_id).send(role.mention, embed=embed, file=image_file)
         await message.pin()
@@ -273,17 +275,13 @@ class Trivia:
 
     def calculate_points(self, seconds_elapsed, difficulty):
         base_point = [70, 80, 90, 100, 110]
-        # 10 second answer get bonus points
         points = (math.cos((math.pi * min(seconds_elapsed, 10)) / 10) + 1) / 2
         points = base_point[difficulty - 1] + round(max(0, points * 10))
         points = points - min(10, len(self.current_winners) * 2)
         return points
 
-    # t-currentTime, b-startvalue, c-changeInValue, d-duration
-    # t and d can be frames or secs/millisecs
-    # http://gizma.com/easing
     def _easeInOutCirc(self, t, b, c, d):
-        if t > d: # past duration, use minimum
+        if t > d:
             return b + c
         t = t / (d / 2)
         if t < 1:
@@ -292,7 +290,7 @@ class Trivia:
         return c / 2 * (math.sqrt(1 - t*t) + 1) + b
 
     def _easeOutQuad(self, t, b, c, d):
-        if t > d: # past duration, use minimum
+        if t > d:
             return b + c
         t = t / d
         return -c * t * (t - 2) + b
@@ -351,14 +349,14 @@ class Trivia:
     async def cmd_due(self, message):
         if message.author.id == self.client.user.id:
             return
-        if not message.author.permissions_in(message.channel).manage_messages:
+        if not message.channel.permissions_for(message.author).manage_messages:
             return
         seconds_left = (self.cooldown_expiration - datetime.datetime.now()).total_seconds()
         seconds_left = round(max(seconds_left, 0))
         cooldown = self.format_cooldown(seconds_left)
         await message.author.send("Next question will be posted in about {}".format(cooldown))
         await message.delete()
-        
+
     def format_cooldown(self, cooldown):
         if cooldown <= 0:
             return "0s"

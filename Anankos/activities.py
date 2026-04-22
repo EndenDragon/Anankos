@@ -20,19 +20,11 @@ class Activities:
         }
 
     async def create_embedded_invite(self, channel, target_application_id):
-        data = await channel._state.http.request(
-            discord.http.Route(
-                "POST", 
-                "/channels/{channel_id}/invites",
-                channel_id=channel.id
-            ),
-            json={
-                "max_age": 0,
-                "target_type": 2,
-                "target_application_id": target_application_id
-            }
+        return await channel.create_invite(
+            max_age=0,
+            target_type=discord.InviteTarget.embedded_application,
+            target_application_id=target_application_id
         )
-        return discord.Invite.from_incomplete(data=data, state=channel._state)
 
     async def on_message(self, message):
         content = message.content.lower().split()

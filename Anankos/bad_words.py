@@ -21,7 +21,7 @@ class BadWords:
     async def handle_bad_words(self, message):
         if message.author.id == self.client.user.id or not isinstance(message.author, discord.Member):
             return
-        if message.author.permissions_in(message.channel).manage_messages or not message.guild.me.permissions_in(message.channel).manage_messages:
+        if message.channel.permissions_for(message.author).manage_messages or not message.channel.permissions_for(message.guild.me).manage_messages:
             return
         unidecoded = unidecode(message.content)
         regional_indi_normalized = self.convert_regional_indicators(message.content)

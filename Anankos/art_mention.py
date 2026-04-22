@@ -5,7 +5,46 @@ import discord
 import asyncio
 import re
 
-from discord_slash.utils.manage_components import create_actionrow, create_button, ButtonStyle
+from discord.ext import tasks
+
+
+class ArtMentionButton(discord.ui.DynamicItem[discord.ui.Button], template=r"art_mention (?P<character>\w+)"):
+    """Persistent subscribe/unsubscribe button for fanart notifications."""
+
+    def __init__(self, character: str, style: discord.ButtonStyle = discord.ButtonStyle.primary, label: str = None):
+        super().__init__(
+            discord.ui.Button(
+                label=label or character,
+                custom_id=f"art_mention {character}",
+                style=style,
+                emoji="🔔",
+            )
+        )
+        self.character = character
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match: re.Match):
+        return cls(character=match.group("character"), label=item.label, style=item.style)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        art_mention = interaction.client.art_mention
+        author = interaction.user
+        existing = await art_mention.get_all_user_subscriptions(author.id)
+        if self.character in existing:
+            await art_mention.unsubscribe_user(author.id, self.character)
+            message = f"Unsubscribed from **{self.character}**."
+        else:
+            await art_mention.subscribe_user(author.id, self.character)
+            count = await art_mention.get_sub_count(self.character)
+            message = f"✅ Successfully subscribed to **{self.character} ({count})**."
+        await interaction.followup.send(message, ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        print(f"ArtMentionButton error (character={self.character!r}):", error)
+        import traceback
+        traceback.print_exc()
+
 
 class ArtMention:
     def __init__(self, client, image_channelids, thread_channelids, base_role_id, pingboard_channelid):
@@ -16,11 +55,8 @@ class ArtMention:
         self.pingboard_channelid = pingboard_channelid
         self.mention_last = {}
         self.cooldown = 2 * 60
-        self.re_compiled = re.compile("^!!(?P<character>\w+)\W*$")
+        self.re_compiled = re.compile(r"^!!(?P<character>\w+)\W*$")
         self.pingboard_uptodate = False
-        
-        self.bg_task_delete_roles = self.client.loop.create_task(self.background_task_delete_roles())
-        self.bg_task_update_pingboard = self.client.loop.create_task(self.background_task_update_pingboard())
 
     async def create_tables(self):
         await self.client.db.execute(
@@ -43,30 +79,35 @@ class ArtMention:
         )
         await self.client.db.commit()
 
-    async def background_task_delete_roles(self):
-        await self.client.wait_until_ready()
-        while not self.client.is_closed():
-            for guild in self.client.guilds:
-                for role in list(guild.roles):
-                    if role.name.endswith(" - Fanart Notification"):
-                        character = role.name.split()[0]
-                        if await self.role_expired(character):
-                            try:
-                                await role.delete()
-                            except:
-                                pass
-            await asyncio.sleep(43200) # 12 hours
+    def start_tasks(self):
+        self.background_task_delete_roles.start()
+        self.background_task_update_pingboard.start()
 
+    @tasks.loop(hours=12)
+    async def background_task_delete_roles(self):
+        for guild in self.client.guilds:
+            for role in list(guild.roles):
+                if role.name.endswith(" - Fanart Notification"):
+                    character = role.name.split()[0]
+                    if await self.role_expired(character):
+                        try:
+                            await role.delete()
+                        except:
+                            pass
+
+    @tasks.loop(minutes=10)
     async def background_task_update_pingboard(self):
+        if not self.pingboard_uptodate:
+            self.pingboard_uptodate = True
+            try:
+                await self.update_pingboard()
+            except:
+                pass
+
+    @background_task_delete_roles.before_loop
+    @background_task_update_pingboard.before_loop
+    async def before_tasks(self):
         await self.client.wait_until_ready()
-        while not self.client.is_closed():
-            if not self.pingboard_uptodate:
-                self.pingboard_uptodate = True
-                try:
-                    await self.update_pingboard()
-                except:
-                    pass
-            await asyncio.sleep(60 * 10) # 10 minute
 
     async def role_expired(self, character):
         elapsed_last = await self.get_time_elapsed(character)
@@ -122,7 +163,7 @@ class ArtMention:
                 character = match.group("character").lower()
             else:
                 continue
-            if self.get_cooldown_seconds(character) > 0 and not message.author.permissions_in(message.channel).manage_messages:
+            if self.get_cooldown_seconds(character) > 0 and not message.channel.permissions_for(message.author).manage_messages:
                 continue
             self.mention_last[character] = datetime.datetime.now()
             await self.add_wait_emote(message)
@@ -137,27 +178,21 @@ class ArtMention:
         character_no_subs = list(character_no_subs)[:25 - len(roles_to_mention)]
         if len(roles_to_mention) or len(character_no_subs):
             mentions = ""
-            button_list = []
             names = []
             for role in roles_to_mention:
                 mentions = mentions + role.mention + " "
                 name = role.name[:-1 * len(" - Fanart Notification")]
-                button = create_button(style=ButtonStyle.blue, label=name, custom_id="art_mention {}".format(name), emoji="🔔")
-                button_list.append(button)
                 names.append(name)
             for character_name in character_no_subs:
                 mentions = mentions + "[@{}] ".format(character_name)
-                button = create_button(style=ButtonStyle.blue, label=character_name, custom_id="art_mention {}".format(character_name), emoji="🔔")
-                button_list.append(button)
                 names.append(character_name)
-            components = []
-            button_list = list(self.divide_chunks(button_list, 5))
-            for chunk in button_list:
-                components.append(create_actionrow(*chunk))
+            view = discord.ui.View(timeout=None)
+            for name in names:
+                view.add_item(ArtMentionButton(character=name, label=name))
             channel = message.channel
             if message.channel.id in self.thread_channelids:
                 channel = await create_thread(message, ("art-" + "_".join(names))[:99])
-            await channel.send(mentions, mention_author=False, components=components)
+            await channel.send(mentions, mention_author=False, view=view)
             if message.channel.id in self.thread_channelids:
                 await self.client.image_embed.post_image_embeds(message, channel)
                 if message.reference and message.reference.message_id:
@@ -165,26 +200,8 @@ class ArtMention:
                     await self.client.image_embed.post_image_embeds(reference, channel, True)
 
     def divide_chunks(self, l, n): # https://www.geeksforgeeks.org/break-list-chunks-size-n-python/
-        # looping till length l
-        for i in range(0, len(l), n): 
+        for i in range(0, len(l), n):
             yield l[i:i + n]
-
-    async def on_component(self, component):
-        custom_id = component.custom_id.split()
-        if custom_id[0] != "art_mention":
-            return
-        character = custom_id[1]
-        author = component.author
-        existing = await self.get_all_user_subscriptions(author.id)
-        await component.defer(hidden=True)
-        message = ""
-        if character in existing:
-            message = "Unsubscribed to **{}**.".format(character)
-            await self.unsubscribe_user(author.id, character)
-        else:
-            await self.subscribe_user(author.id, character)
-            message = "✅ Successfully subscribed to **{} ({})**.".format(character, await self.get_sub_count(character))
-        await component.send(message, hidden=True)
 
     async def add_wait_emote(self, message):
         for reaction in message.reactions:
@@ -266,37 +283,36 @@ class ArtMention:
         async for message in channel.history(oldest_first=True):
             if message.author == self.client.user:
                 existing_messages.append(message)
-        button_list = []
         max_users = 0
         subs = await self.get_all_subscriptions()
         for character, users in subs.items():
             max_users = max(max_users, len(users))
+        entries = []
         for character, users in subs.items():
-            button_style = ButtonStyle.gray
-            ratio = len(users) / max_users
-            if ratio > 0.1:
-                button_style = ButtonStyle.blue
-            if ratio > 0.25:
-                button_style = ButtonStyle.green
+            ratio = len(users) / max_users if max_users else 0
             if ratio > 0.55:
-                button_style = ButtonStyle.red
-            button = create_button(style=button_style, label="{} ({})".format(character, len(users)), custom_id="art_mention {}".format(character))
-            button_list.append(button)
-        button_list = list(self.divide_chunks(button_list, 5))
-        button_list = list(self.divide_chunks(button_list, 5))
+                style = discord.ButtonStyle.danger
+            elif ratio > 0.25:
+                style = discord.ButtonStyle.success
+            elif ratio > 0.1:
+                style = discord.ButtonStyle.primary
+            else:
+                style = discord.ButtonStyle.secondary
+            entries.append((character, style, "{} ({})".format(character, len(users))))
+        message_chunks = list(self.divide_chunks(entries, 25))
         chunk_id = 0
-        for message_chunk in button_list:
-            components = []
-            for chunk in message_chunk:
-                components.append(create_actionrow(*chunk))
+        for message_chunk in message_chunks:
+            view = discord.ui.View(timeout=None)
+            for character, style, label in message_chunk:
+                view.add_item(ArtMentionButton(character=character, style=style, label=label))
             retries_left = 10
             while retries_left > 0:
                 try:
                     if chunk_id < len(existing_messages):
-                        await existing_messages[chunk_id].edit(components=components)
+                        await existing_messages[chunk_id].edit(content="​", view=view)
                         break
                     else:
-                        await channel.send("​", components=components)
+                        await channel.send("​", view=view)
                         break
                 except:
                     retries_left = retries_left - 1
@@ -308,7 +324,7 @@ class ArtMention:
     async def cmd_streak(self, message):
         streaks = []
         subs = await self.get_all_subscriptions()
-        time_diff = (datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds()
+        time_diff = (datetime.datetime.now() - datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)).total_seconds()
         for character in subs.keys():
             role = await self.get_role(character, message.guild, False)
             if role:
@@ -369,7 +385,6 @@ class ArtMention:
 
     async def respond(self, message, contents, emoji):
         await message.channel.send(contents)
-            
 
     async def cmd_unsubscribe(self, message):
         content_split = message.content.lower().split()
@@ -458,7 +473,6 @@ class ArtMention:
             if user:
                 count = count + 1
         return count
-
 
     async def get_all_user_subscriptions(self, user_id):
         subscriptions = await self.get_all_subscriptions()

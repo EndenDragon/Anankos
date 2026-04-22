@@ -3,7 +3,7 @@ import re
 class NitroEmote:
     def __init__(self, client):
         self.client = client
-        self.regex = re.compile(":!([^\s^:]+):")
+        self.regex = re.compile(r":!([^\s^:]+):")
 
     async def on_message(self, message):
         if message.author.id == self.client.user.id or len(message.content) == 0:

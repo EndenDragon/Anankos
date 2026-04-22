@@ -12,7 +12,7 @@ class Image:
     def is_dupe(self, other):
         return self.service == other.service \
             and self.unique_id == other.unique_id \
-            and (self.message_obj.created_at - other.message_obj.created_at).total_seconds() < 172800 # 2 days
+            and abs((self.message_obj.created_at - other.message_obj.created_at).total_seconds()) < 172800 # 2 days
 
 class ArtDeduper:
     def __init__(self, client, image_channelids):
@@ -22,9 +22,9 @@ class ArtDeduper:
 
         self.extractor = URLExtract()
 
-        self.twitter_pattern = re.compile("twitter.com/\w+/status/(\d+)")
-        self.pixiv_pattern = re.compile("www\.pixiv\.net\/en\/artworks\/(\d+)")
-        self.bsky_pattern = re.compile("bsky.app\/profile/.+/post/(\w+)")
+        self.twitter_pattern = re.compile(r"twitter.com/\w+/status/(\d+)")
+        self.pixiv_pattern = re.compile(r"www\.pixiv\.net/en/artworks/(\d+)")
+        self.bsky_pattern = re.compile(r"bsky.app/profile/.+/post/(\w+)")
 
     def cache_message(self, message):
         urls = self.extractor.find_urls(message.content, True)

@@ -7,6 +7,8 @@ from Crypto.Util import Counter
 import json
 from dateutil import tz
 
+from discord.ext import tasks
+
 # https://stackoverflow.com/questions/12524994/encrypt-decrypt-using-pycrypto-aes-256
 # https://github.com/beenotung/compress-json
 
@@ -93,7 +95,6 @@ class JSONDecompressor:
         s = s.replace("n|", "")
         return self.s_to_num(s)
 
-    # list, index, value
     def set_list(self, l, i, v):
       try:
           l[i] = v
@@ -111,7 +112,7 @@ class JSONDecompressor:
         for i in range(0, n, 1):
             v = vs[i + 1]
             v = self.decode(values, v)
-            self.set_list(xs, i, v) # xs[i] = v
+            self.set_list(xs, i, v)
         return xs
 
     def decodeStr(self, s):
@@ -144,7 +145,7 @@ class JSONDecompressor:
                 return self.decodeArray(values, v)
             else:
                 return self.decodeStr(v)
-    
+
     def decompress(self, c):
         values, root = c
         return self.decode(values, root)
@@ -153,26 +154,29 @@ class PriconneNotification:
     def __init__(self, client, channel_id):
         self.client = client
         self.channel_id = channel_id
-        self.httpsession = aiohttp.ClientSession()
+        self.httpsession = None
         self.decompressor = JSONDecompressor()
 
-        self.bg_task = self.client.loop.create_task(self.background_task())
+    def start_tasks(self):
+        self.httpsession = aiohttp.ClientSession()
+        self.background_task.start()
 
+    async def close(self):
+        if self.httpsession and not self.httpsession.closed:
+            await self.httpsession.close()
+
+    @tasks.loop(seconds=30)
     async def background_task(self):
+        utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        if utc.hour == 13 and utc.minute == 0:
+            await self.run_reminders()
+
+    @background_task.before_loop
+    async def before_background_task(self):
         await self.client.wait_until_ready()
-        utc = datetime.datetime.utcnow()
-        wait = 0
-        if utc.second > 5:
-            wait = 60 - utc.second + 5
-        else:
-            wait = 5 - utc.second
+        utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        wait = (5 - utc.second) if utc.second <= 5 else (60 - utc.second + 5)
         await asyncio.sleep(wait)
-        while not self.client.is_closed():
-            utc = datetime.datetime.utcnow()
-            if utc.hour == 13 and utc.minute == 0:
-                await self.run_reminders()
-                await asyncio.sleep(120)
-            await asyncio.sleep(30)
 
     async def fetch_events(self):
         url = "https://kenofnz.github.io/priconne-en-event-timer/data/data.json"
@@ -185,7 +189,7 @@ class PriconneNotification:
             content = req["content"]
             content = codecs.decode(content, 'hex')
 
-            key = "vOVH6sdmpNWjRRIqCc7rdxs01lwHzfr3"
+            key = b"vOVH6sdmpNWjRRIqCc7rdxs01lwHzfr3"
             iv_int = int(iv, 16)
             ctr = Counter.new(AES.block_size * 8, initial_value=iv_int)
             aes = AES.new(key, AES.MODE_CTR, counter=ctr)
@@ -198,7 +202,7 @@ class PriconneNotification:
 
     async def run_reminders(self):
         events = await self.fetch_events()
-        utc = datetime.datetime.utcnow()
+        utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         output = "**Princess Connect Schedule**"
         starting_events = []
         ending_events = []
@@ -210,10 +214,8 @@ class PriconneNotification:
             end_time = datetime.datetime.strptime(event["end_time"], '%Y/%m/%d %H:%M:%S')
             end_time.replace(tzinfo=tz.tzutc())
             if start_time > utc - datetime.timedelta(hours=1) and start_time < utc + datetime.timedelta(hours=23):
-                # "StartDate > DATE_SUB(NOW(), INTERVAL 1 HOUR) AND StartDate < DATE_ADD(NOW(), INTERVAL 23 HOUR)"
                 starting_events.append(event)
             elif end_time < utc + datetime.timedelta(hours=24) and end_time > utc and end_time - start_time > datetime.timedelta(hours=1):
-                # "EndDate < DATE_ADD(NOW(), INTERVAL 1 DAY) AND EndDate > NOW()"
                 ending_events.append(event)
         if len(starting_events):
             output = output + "\n__Events Starting Today:__"

@@ -6,6 +6,8 @@ import asyncio
 import asyncpraw
 import time
 
+from discord.ext import tasks
+
 class RedditPublish:
     def __init__(self, client, source_chan_id, dest_chan_id, client_id, client_secret):
         self.client = client
@@ -14,42 +16,49 @@ class RedditPublish:
         self.client_id = client_id
         self.client_secret = client_secret
         self.extractor = URLExtract()
-        self.httpsession = aiohttp.ClientSession()
+        self.httpsession = None
         self.reddit = asyncpraw.Reddit(
             client_id=client_id,
             client_secret=client_secret,
             user_agent="Anankos Discord Bot for Corrin Conclave Community https://github.com/EndenDragon/Anankos",
         )
 
-        self.bg_task = self.client.loop.create_task(self.background_task())
+    def start_tasks(self):
+        self.httpsession = aiohttp.ClientSession()
+        self.background_task.start()
 
+    async def close(self):
+        if self.httpsession and not self.httpsession.closed:
+            await self.httpsession.close()
+
+    @tasks.loop(seconds=120)
     async def background_task(self):
-        await self.client.wait_until_ready()
-        last_created = None
-        while not self.client.is_closed():
-            try:
-                subreddit = await self.reddit.subreddit("CorrinConclave")
-                async for submission in subreddit.stream.submissions(skip_existing=True):
-                    if hasattr(submission, "created_utc") and submission.created_utc:
-                        if abs(time.time() - submission.created_utc) > 600: # 10 minutes in seconds
-                            print("skipped too old" + " https://reddit.com" + submission.permalink)
-                            continue
-                    else:
+        try:
+            subreddit = await self.reddit.subreddit("CorrinConclave")
+            async for submission in subreddit.stream.submissions(skip_existing=True):
+                if hasattr(submission, "created_utc") and submission.created_utc:
+                    if abs(time.time() - submission.created_utc) > 600: # 10 minutes in seconds
+                        print("skipped too old" + " https://reddit.com" + submission.permalink)
                         continue
-                    try:
-                        permalink = "https://reddit.com" + submission.permalink
-                        embed = await self.get_rich_embed(permalink)
-                        print(embed)
-                        if embed:
-                            channel = self.client.get_channel(self.source_chan_id)
-                            await channel.send(embed=embed)
-                    except Exception as e:
-                        print("Reddit Publish submission error:")
-                        print(e)
-            except Exception as e:
-                print("Reddit Publish error:")
-                print(e)
-            await asyncio.sleep(120)
+                else:
+                    continue
+                try:
+                    permalink = "https://reddit.com" + submission.permalink
+                    embed = await self.get_rich_embed(permalink)
+                    print(embed)
+                    if embed:
+                        channel = self.client.get_channel(self.source_chan_id)
+                        await channel.send(embed=embed)
+                except Exception as e:
+                    print("Reddit Publish submission error:")
+                    print(e)
+        except Exception as e:
+            print("Reddit Publish error:")
+            print(e)
+
+    @background_task.before_loop
+    async def before_background_task(self):
+        await self.client.wait_until_ready()
 
     async def on_message(self, message):
         if message.channel.id != self.source_chan_id:
@@ -73,7 +82,7 @@ class RedditPublish:
         for reaction in message.reactions:
             if reaction.me and str(reaction.emoji) == "✅":
                 return
-        if payload.emoji.is_unicode_emoji() and payload.emoji.name == "📤":
+        if payload.emoji.id is None and payload.emoji.name == "📤":
             url = message.embeds[0].author.url
             await self.publish_reddit_link(url)
             await message.add_reaction("✅")
@@ -118,17 +127,9 @@ class RedditPublish:
         )
         embed.add_field(name="Post Author", value="/u/{}".format(post_author), inline=True)
         return embed
-    
+
     async def publish_message(self, message):
-        channel = message.channel
-        await message.guild._state.http.request(
-            discord.http.Route(
-                "POST",
-                "/channels/{channel_id}/messages/{message_id}/crosspost",
-                channel_id=channel.id,
-                message_id=message.id,
-            )
-        )
+        await message.publish()
 
     async def publish_reddit_link(self, url):
         embed = await self.get_rich_embed(url)

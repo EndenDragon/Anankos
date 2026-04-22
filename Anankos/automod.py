@@ -19,4 +19,4 @@ class AutoMod:
                 await message.author.ban(reason=reason, delete_message_days=1)
             except:
                 pass
-            await message.channel.send("**{}#{} ({}) was banned automatically.**\n{}.".format(message.author.name, message.author.discriminator, message.author.mention, reason))
+            await message.channel.send("**{} ({}) was banned automatically.**\n{}.".format(message.author.name, message.author.mention, reason))

@@ -32,9 +32,9 @@ class RoleReaction:
             return (None, None)
         emoji = payload.emoji
         lookup_str = None
-        if emoji.is_custom_emoji():
+        if emoji.id is not None:
             lookup_str = emoji.id
-        if emoji.is_unicode_emoji():
+        else:
             lookup_str = emoji.name
         if lookup_str not in emoji_roles:
             return (None, None)

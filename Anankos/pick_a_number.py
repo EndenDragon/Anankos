@@ -105,7 +105,7 @@ class PickANumber:
             member = message.guild.get_member(userid)
             name = ""
             if member:
-                name = member.name + "#" + member.discriminator
+                name = member.name
             csvfile.writerow([number, name, userid])
         f.seek(0)
         discordfile = discord.File(f, filename="pick_a_number.csv")
