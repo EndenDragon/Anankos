@@ -148,34 +148,23 @@ class ArtMention:
             await self.cmd_listsubs(message)
         elif message.content.startswith(self.client.cmd_prefix + "streak"):
             await self.cmd_streak(message)
+        if isinstance(message.channel, discord.Thread) and message.channel.parent_id in self.thread_channelids:
+            await self.on_thread_art_message(message)
+            return
         if message.channel.id not in self.image_channelids:
             return
         if message.channel.id in self.thread_channelids and "!!" not in message.content and "http" not in message.content and not message.author.bot and len(message.attachments) == 0:
             await message.delete()
             return
-        content_split = message.content.lower().split()
-        roles_to_mention = set()
-        character_no_subs = set()
-        for content in content_split:
-            character = None
-            match = self.re_compiled.match(content)
-            if match:
-                character = match.group("character").lower()
-            else:
-                continue
-            if self.get_cooldown_seconds(character) > 0 and not message.channel.permissions_for(message.author).manage_messages:
-                continue
-            self.mention_last[character] = datetime.datetime.now()
+        characters = self._parse_tags(message.content)
+        characters = [c for c in characters
+                      if self.get_cooldown_seconds(c) == 0 or message.channel.permissions_for(message.author).manage_messages]
+        if characters:
             await self.add_wait_emote(message)
-            role = await self.get_role(character, message.guild)
-            if not role:
-                character_no_subs.add(character)
-                continue
-            roles_to_mention.add(role)
-            await self.bump_character(character)
+        roles_to_mention, character_no_subs = await self._resolve_characters(characters, message.guild)
         await self.remove_wait_emote(message)
-        roles_to_mention = list(roles_to_mention)[:25]
-        character_no_subs = list(character_no_subs)[:25 - len(roles_to_mention)]
+        roles_to_mention = roles_to_mention[:25]
+        character_no_subs = character_no_subs[:25 - len(roles_to_mention)]
         if len(roles_to_mention) or len(character_no_subs):
             mentions = ""
             names = []
@@ -214,6 +203,110 @@ class ArtMention:
         for reaction in message.reactions:
             if str(reaction.emoji) == "⌛" and reaction.me:
                 await message.remove_reaction("⌛", self.client.user)
+
+    def _parse_tags(self, content):
+        seen = set()
+        characters = []
+        for word in content.lower().split():
+            match = self.re_compiled.match(word)
+            if match:
+                character = match.group("character").lower()
+                if character not in seen:
+                    characters.append(character)
+                    seen.add(character)
+        return characters
+
+    async def _resolve_characters(self, characters, guild):
+        roles_to_mention = []
+        character_no_subs = []
+        for character in characters:
+            self.mention_last[character] = datetime.datetime.now()
+            role = await self.get_role(character, guild)
+            if role:
+                roles_to_mention.append(role)
+                await self.bump_character(character)
+            else:
+                character_no_subs.append(character)
+        return roles_to_mention, character_no_subs
+
+    async def find_thread_ping_message(self, thread):
+        """Scan a thread's history for the bot's ping message. Returns (message, [characters]) or (None, [])."""
+        async for msg in thread.history(oldest_first=True, limit=50):
+            if msg.author.id != self.client.user.id:
+                continue
+            characters = []
+            for action_row in msg.components:
+                for button in action_row.children:
+                    if hasattr(button, 'custom_id') and button.custom_id and button.custom_id.startswith("art_mention "):
+                        characters.append(button.custom_id[len("art_mention "):])
+            if characters:
+                return msg, characters
+        return None, []
+
+    async def on_thread_art_message(self, message):
+        thread = message.channel
+        new_characters = self._parse_tags(message.content)
+
+        if not new_characters:
+            return
+
+        ping_message, existing_characters = await self.find_thread_ping_message(thread)
+        if ping_message is None:
+            return
+
+        existing_set = set(existing_characters)
+        existing_count = len(existing_characters)
+
+        duplicates = []
+        added = []
+        dropped_limit = []
+
+        for character in new_characters:
+            if character in existing_set:
+                duplicates.append(character)
+                continue
+            if existing_count >= 25:
+                dropped_limit.append(character)
+                continue
+            if self.get_cooldown_seconds(character) > 0 and not thread.permissions_for(message.author).manage_messages:
+                continue
+            added.append(character)
+            existing_set.add(character)
+            existing_characters.append(character)
+            existing_count += 1
+
+        if not added and not duplicates and not dropped_limit:
+            return
+
+        if added:
+            roles_to_mention, character_no_subs = await self._resolve_characters(added, message.guild)
+
+            mentions = ""
+            for role in roles_to_mention:
+                mentions += role.mention + " "
+            for char in character_no_subs:
+                mentions += f"[@{char}] "
+
+            if mentions.strip():
+                await ping_message.reply(mentions.strip(), mention_author=False)
+            await message.add_reaction("✅")
+
+            view = discord.ui.View(timeout=None)
+            for char in existing_characters:
+                view.add_item(ArtMentionButton(character=char, label=char))
+            await ping_message.edit(view=view)
+            await thread.edit(name=("art-" + "_".join(existing_characters))[:99])
+
+        reply_parts = []
+        if duplicates:
+            dupes_str = ", ".join(f"**{d}**" for d in duplicates)
+            verb = "are" if len(duplicates) > 1 else "is"
+            reply_parts.append(f"{dupes_str} {verb} already added!")
+        if dropped_limit:
+            dropped_str = ", ".join(f"**{d}**" for d in dropped_limit)
+            reply_parts.append(f"{dropped_str} could not be added — this thread has reached the 25 ping limit.")
+        if reply_parts:
+            await message.reply(" ".join(reply_parts))
 
     async def get_role(self, character, guild, create_role=True):
         if not guild:

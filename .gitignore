@@ -134,3 +134,4 @@ dmypy.json
 # Project specifc
 config.py
 trivia/*.csv
+CLAUDE.local.md
