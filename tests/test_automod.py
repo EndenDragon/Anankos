@@ -74,26 +74,26 @@ class TestCheckSpam(unittest.TestCase):
         msg = make_message("buy cheap followers now!!", channel_id=1, author_id=100)
         self.assertIsNone(self.am._check_spam(msg))
 
-    def test_no_spam_two_channels(self):
+    def test_no_spam_four_channels(self):
         content = "buy cheap followers now!!"
-        self._pre_populate(100, content, [1])
-        msg = make_message(content, channel_id=2, author_id=100)
+        self._pre_populate(100, content, [1, 2, 3])
+        msg = make_message(content, channel_id=4, author_id=100)
         self.assertIsNone(self.am._check_spam(msg))
 
-    def test_spam_detected_at_three_channels(self):
+    def test_spam_detected_at_five_channels(self):
         content = "buy cheap followers now!!"
-        self._pre_populate(100, content, [1, 2])
-        msg = make_message(content, channel_id=3, author_id=100)
-        result = self.am._check_spam(msg)
-        self.assertIsNotNone(result)
-        self.assertIn("3 channels", result)
-
-    def test_spam_reports_correct_channel_count(self):
-        content = "spam message here everyone!!"
         self._pre_populate(100, content, [1, 2, 3, 4])
         msg = make_message(content, channel_id=5, author_id=100)
         result = self.am._check_spam(msg)
+        self.assertIsNotNone(result)
         self.assertIn("5 channels", result)
+
+    def test_spam_reports_correct_channel_count(self):
+        content = "spam message here everyone!!"
+        self._pre_populate(100, content, [1, 2, 3, 4, 5, 6])
+        msg = make_message(content, channel_id=7, author_id=100)
+        result = self.am._check_spam(msg)
+        self.assertIn("7 channels", result)
 
     def test_old_messages_outside_window_pruned(self):
         content = "buy cheap followers now!!"
@@ -106,15 +106,20 @@ class TestCheckSpam(unittest.TestCase):
         msg = make_message("completely unrelated content here", channel_id=3, author_id=100)
         self.assertIsNone(self.am._check_spam(msg))
 
-    def test_content_too_short_not_tracked(self):
-        self._pre_populate(100, "hi", [1, 2])
-        msg = make_message("hi", channel_id=3, author_id=100)
+    def test_empty_content_not_tracked(self):
+        msg = make_message("   ", channel_id=5, author_id=100)
         self.assertIsNone(self.am._check_spam(msg))
+
+    def test_short_content_tracked_and_triggers_spam(self):
+        self._pre_populate(100, "hi", [1, 2, 3, 4])
+        msg = make_message("hi", channel_id=5, author_id=100)
+        result = self.am._check_spam(msg)
+        self.assertIsNotNone(result)
 
     def test_history_cleared_after_spam_detected(self):
         content = "buy cheap followers now!!"
-        self._pre_populate(100, content, [1, 2])
-        msg = make_message(content, channel_id=3, author_id=100)
+        self._pre_populate(100, content, [1, 2, 3, 4])
+        msg = make_message(content, channel_id=5, author_id=100)
         self.am._check_spam(msg)
         self.assertNotIn(100, self.am._recent_messages)
 
@@ -127,8 +132,8 @@ class TestCheckSpam(unittest.TestCase):
     def test_url_variants_treated_as_same_content(self):
         content_a = "free nitro at https://scam.com/abc123 claim now"
         content_b = "free nitro at https://scam.com/xyz999 claim now"
-        self._pre_populate(100, content_a, [1, 2])
-        msg = make_message(content_b, channel_id=3, author_id=100)
+        self._pre_populate(100, content_a, [1, 2, 3, 4])
+        msg = make_message(content_b, channel_id=5, author_id=100)
         result = self.am._check_spam(msg)
         self.assertIsNotNone(result)
 
@@ -174,11 +179,11 @@ class TestOnMessage(unittest.IsolatedAsyncioTestCase):
         content = "spam message here everyone!!"
         normalized = self.am._normalize(content)
         now = datetime.datetime.now(datetime.timezone.utc)
-        for ch_id in [1, 2]:
+        for ch_id in [1, 2, 3, 4]:
             self.am._recent_messages[100].append(
                 (ch_id, normalized, now - datetime.timedelta(seconds=5))
             )
-        msg = make_message(content, channel_id=3, author_id=100)
+        msg = make_message(content, channel_id=5, author_id=100)
         await self.am.on_message(msg)
         msg.author.ban.assert_called_once()
 

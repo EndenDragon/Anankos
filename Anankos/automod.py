@@ -10,8 +10,7 @@ _BAN_DM = (
 )
 
 _SPAM_WINDOW = 30    # seconds
-_SPAM_THRESHOLD = 3  # distinct channels
-_SPAM_MIN_LEN = 10   # minimum normalized content length to track
+_SPAM_THRESHOLD = 5  # distinct channels
 
 
 class AutoMod:
@@ -37,7 +36,7 @@ class AutoMod:
 
     def _check_spam(self, message):
         content = self._normalize(message.content)
-        if len(content) < _SPAM_MIN_LEN:
+        if not content:
             return None
 
         user_id = message.author.id

@@ -21,6 +21,9 @@ class SuspiciousFilter:
 
     def _score(self, member):
         """Returns (total_score, breakdown_list) where each breakdown entry is (label, points)."""
+        if member.public_flags.spammer:
+            return 100, [("Discord-flagged spammer", 100)]
+
         breakdown = []
         age_days = (datetime.datetime.now(datetime.timezone.utc) - member.created_at).days
 

@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from Anankos.suspicious_filter import SuspiciousFilter, _TRACK_WINDOW, _REACTION_SECS
 
 
-def make_member(age_days, has_avatar=True, flags_value=1, is_bot=False, user_id=1):
+def make_member(age_days, has_avatar=True, flags_value=1, is_bot=False, user_id=1, is_spammer=False):
     member = MagicMock()
     member.bot = is_bot
     member.id = user_id
@@ -17,6 +17,7 @@ def make_member(age_days, has_avatar=True, flags_value=1, is_bot=False, user_id=
     member.created_at = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=age_days)
     member.avatar = MagicMock() if has_avatar else None
     member.public_flags.value = flags_value
+    member.public_flags.spammer = is_spammer
     member.joined_at = datetime.datetime.now(datetime.timezone.utc)
     member.send = AsyncMock()
     member.kick = AsyncMock()
@@ -72,6 +73,13 @@ class TestScore(unittest.TestCase):
         member = make_member(age_days=10, has_avatar=False, flags_value=0)
         score, _ = self.sf._score(member)
         self.assertEqual(score, 60)
+
+    def test_discord_spammer_flag_scores_100_and_short_circuits(self):
+        member = make_member(age_days=365, has_avatar=True, flags_value=1, is_spammer=True)
+        score, breakdown = self.sf._score(member)
+        self.assertEqual(score, 100)
+        self.assertEqual(len(breakdown), 1)
+        self.assertIn("spammer", breakdown[0][0].lower())
 
     def test_breakdown_labels_present(self):
         member = make_member(age_days=3, has_avatar=False)
