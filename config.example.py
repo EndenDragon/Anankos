@@ -87,4 +87,9 @@ CONFIG = {
 
     # Poll Manager
     "poll_channelid": 149029550599176192,
+
+    # Suspicious Filter
+    "suspicious_filter_log_channelid": 123456789,       # channel to post kick audit logs
+    "suspicious_filter_welcome_channelids": [111, 222], # channels to watch for instant reactions
+    "suspicious_filter_kick_score": 40,                 # suspicion threshold (lower = stricter)
 }

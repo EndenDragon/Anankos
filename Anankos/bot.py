@@ -16,6 +16,7 @@ from Anankos.automod import AutoMod
 from Anankos.art_deduper import ArtDeduper
 from Anankos.edit_link_filter import EditLinkFilter
 from Anankos.poll_manager import PollManager
+from Anankos.suspicious_filter import SuspiciousFilter
 
 import asyncio
 import discord
@@ -51,6 +52,12 @@ class Anankos(commands.Bot):
         self.art_deduper = ArtDeduper(self, config.get("deduper_channelids", []))
         self.edit_link_filter = EditLinkFilter(self, config.get("elf_links", []))
         self.poll_manager = PollManager(self, config.get("poll_channelid"))
+        self.suspicious_filter = SuspiciousFilter(
+            self,
+            config.get("suspicious_filter_log_channelid"),
+            config.get("suspicious_filter_welcome_channelids", []),
+            config.get("suspicious_filter_kick_score", 40),
+        )
 
     async def setup_hook(self):
         self.db = await aiosqlite.connect("db.sqlite3", detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
@@ -97,11 +104,14 @@ class Anankos(commands.Bot):
     async def on_raw_reaction_add(self, payload):
         await self.role_reaction.on_raw_reaction_add(payload)
         await self.reddit_publish.on_raw_reaction_add(payload)
+        await self.suspicious_filter.on_raw_reaction_add(payload)
 
     async def on_raw_reaction_remove(self, payload):
         await self.role_reaction.on_raw_reaction_remove(payload)
 
     async def on_member_join(self, member):
+        if await self.suspicious_filter.on_member_join(member):
+            return
         await self.permanent_roles.on_member_join(member)
 
     async def on_message_delete(self, message):
