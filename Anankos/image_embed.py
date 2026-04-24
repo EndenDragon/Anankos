@@ -37,8 +37,6 @@ class ImageEmbed:
         self.fxtwitter_url = "https://api.fxtwitter.com/user/status/{}"
         self.vxtwitter_url = "https://api.vxtwitter.com/user/status/{}"
 
-        self.pixiv_url = "https://www.pixiv.net/ajax/illust/{}?lang=en"
-        self.pixiv_oembed_fallback_url = "https://embed.pixiv.net/decorate.php?illust_id={}"
         self.phixiv_url = "https://www.phixiv.net/api/info?id={}&language=en"
 
         self.bsky_url = "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2F{}%2Fapp.bsky.feed.post%2F{}"
@@ -348,58 +346,38 @@ class ImageEmbed:
         if not pixiv_link:
             return None
         pixiv_id = int(pixiv_link.group(1))
-        pixiv = await self.fetch_pixiv(pixiv_id)
-        if not pixiv:
+        data = await self.fetch_phixiv(pixiv_id)
+        if not data or not data.get("image_proxy_urls"):
             return None
-        description = pixiv.get("description", None)
+        description = data.get("description") or None
         if description:
             description = markdownify(description, strip=["a"])[:4000]
         embed = discord.Embed(
-            description = description,
-            color = 12123135,
-            url = url,
-            title = pixiv.get("title", None)
+            description=description,
+            color=12123135,
+            url=url,
+            title=data.get("title")
         )
         embed.set_footer(text="Pixiv", icon_url="https://s.pximg.net/common/images/apple-touch-icon.png")
-        image = pixiv["urls"]["regular"]
-        file_object = None
-        file_extension = None
-        if image is None:
-            headers = {
-                "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"
-            }
-            async with self.httpsession.get(self.phixiv_url.format(pixiv_id), headers=headers) as resp:
-                if resp.status < 200 or resp.status >= 300:
-                    image = None
-                else:
-                    response = await resp.json()
-                    if len(response.get("image_proxy_urls", [])):
-                        image = response["image_proxy_urls"][0]
-        if image is not None:
-            file_object = await self.fetch_image_fileobject(image, "https://www.pixiv.net/")
-        else:
-            image = self.pixiv_oembed_fallback_url.format(pixiv_id)
-            file_object = await self.fetch_image_fileobject(image, "https://www.pixiv.net/")
+        file_object = await self.fetch_image_fileobject(data["image_proxy_urls"][0], "https://www.pixiv.net/")
+        if not file_object:
+            return None
         embed.set_image(url="attachment://{}".format(file_object.filename))
         embed.set_author(
-            name="{}".format(pixiv["userName"]),
-            url="https://www.pixiv.net/en/users/{}".format(pixiv["userId"])
+            name=data.get("author_name", ""),
+            url="https://www.pixiv.net/en/users/{}".format(data.get("author_id", "")),
+            icon_url=data.get("profile_image_url")
         )
         return embed, file_object
 
-    async def fetch_pixiv(self, pixiv_id):
-        now = datetime.datetime.now()
+    async def fetch_phixiv(self, pixiv_id):
         headers = {
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.55 Safari/537.36",
-            "accept-language": "en-US,en;q=0.9",
-            "referer": "https://www.pixiv.net/en/artworks/{}".format(pixiv_id)
+            "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"
         }
-        async with self.httpsession.get(self.pixiv_url.format(pixiv_id), headers=headers) as resp:
+        async with self.httpsession.get(self.phixiv_url.format(pixiv_id), headers=headers) as resp:
             if resp.status < 200 or resp.status >= 300:
                 return None
-            result = await resp.json()
-            return result["body"]
-        return None
+            return await resp.json()
 
     async def fetch_fxtwitter(self, tweet_id):
         headers = {
