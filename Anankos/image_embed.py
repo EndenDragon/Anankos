@@ -37,7 +37,7 @@ class ImageEmbed:
         self.fxtwitter_url = "https://api.fxtwitter.com/user/status/{}"
         self.vxtwitter_url = "https://api.vxtwitter.com/user/status/{}"
 
-        self.phixiv_url = "https://www.phixiv.net/api/info?id={}&language=en"
+        self.phixiv_page_url = "https://www.phixiv.net/en/artworks/{}"
 
         self.bsky_url = "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2F{}%2Fapp.bsky.feed.post%2F{}"
 
@@ -346,38 +346,65 @@ class ImageEmbed:
         if not pixiv_link:
             return None
         pixiv_id = int(pixiv_link.group(1))
-        data = await self.fetch_phixiv(pixiv_id)
-        if not data or not data.get("image_proxy_urls"):
+        data = await self.fetch_phixiv_html(pixiv_id)
+        if not data or not data.get("image_url"):
             return None
-        description = data.get("description") or None
-        if description:
-            description = markdownify(description, strip=["a"])[:4000]
         embed = discord.Embed(
-            description=description,
+            description=data.get("description", "")[:4000] or None,
             color=12123135,
             url=url,
             title=data.get("title")
         )
         embed.set_footer(text="Pixiv", icon_url="https://s.pximg.net/common/images/apple-touch-icon.png")
-        file_object = await self.fetch_image_fileobject(data["image_proxy_urls"][0], "https://www.pixiv.net/")
+        file_object = await self.fetch_image_fileobject(data["image_url"], "https://www.phixiv.net/")
         if not file_object:
             return None
         embed.set_image(url="attachment://{}".format(file_object.filename))
         embed.set_author(
             name=data.get("author_name", ""),
-            url="https://www.pixiv.net/en/users/{}".format(data.get("author_id", "")),
-            icon_url=data.get("profile_image_url")
+            url="https://www.pixiv.net/en/users/{}".format(data.get("author_id", ""))
         )
         return embed, file_object
 
-    async def fetch_phixiv(self, pixiv_id):
+    async def fetch_phixiv_html(self, pixiv_id):
         headers = {
-            "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"
+            "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)",
+            "accept-language": "en-US,en;q=0.9",
         }
-        async with self.httpsession.get(self.phixiv_url.format(pixiv_id), headers=headers) as resp:
+        async with self.httpsession.get(self.phixiv_page_url.format(pixiv_id), headers=headers) as resp:
             if resp.status < 200 or resp.status >= 300:
                 return None
-            return await resp.json()
+            html = await resp.text()
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        def og(prop):
+            tag = soup.find("meta", property=prop)
+            return tag["content"] if tag and tag.get("content") else None
+
+        full_title = og("og:title")
+        title = full_title
+        author_name = ""
+        if full_title:
+            m = re.search(r"^(.*?) by \(@(.+?)\)$", full_title)
+            if m:
+                title = m.group(1).strip()
+                author_name = m.group(2).strip()
+
+        author_id = ""
+        oembed_link = soup.find("link", type="application/json+oembed")
+        if oembed_link and oembed_link.get("href"):
+            m = re.search(r"[?&]i=(\d+)", oembed_link["href"])
+            if m:
+                author_id = m.group(1)
+
+        return {
+            "title": title,
+            "description": og("og:description"),
+            "image_url": og("og:image"),
+            "author_name": author_name,
+            "author_id": author_id,
+        }
 
     async def fetch_fxtwitter(self, tweet_id):
         headers = {
