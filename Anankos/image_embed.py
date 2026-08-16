@@ -217,6 +217,75 @@ class ImageEmbed:
             embed.set_author(name=result["author_name"], url=result["author_url"], icon_url="https://st.deviantart.net/eclipse/icons/android-192.png")
             return embed, None
 
+    async def _extract_bsky_media(self, embed_data):
+        """Given a single Bluesky embed view dict, return (image_url, imageobj)."""
+        if not embed_data:
+            return None, None
+
+        etype = embed_data.get("$type")
+
+        if etype == "app.bsky.embed.images#view":
+            images = embed_data.get("images", [])
+            if images:
+                url = images[0].get("fullsize")
+                if url:
+                    return url, None
+
+        elif etype == "app.bsky.embed.gallery#view":
+            items = embed_data.get("items", [])
+            if items:
+                url = items[0].get("fullsize")
+                if url:
+                    return url, None
+
+        elif etype == "app.bsky.embed.external#view":
+            external = embed_data.get("external", {})
+            url = external.get("thumb")
+            if url:
+                return url, None
+
+        elif etype == "app.bsky.embed.video#view":
+            playlist = embed_data.get("playlist")
+            if not playlist:
+                return None, None
+
+            try:
+                tmp_fd, tmp_name = tempfile.mkstemp(suffix=".mp4")
+                os.close(tmp_fd)
+
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg",
+                    "-y",
+                    "-loglevel", "error",
+                    "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+                    "-i", playlist,
+                    "-c:v", "copy",
+                    "-c:a", "copy",
+                    "-bsf:a", "aac_adtstoasc",
+                    tmp_name,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+
+                _, stderr = await proc.communicate()
+
+                if proc.returncode != 0 or not os.path.exists(tmp_name) or os.path.getsize(tmp_name) == 0:
+                    os.remove(tmp_name)
+                    return None, None
+
+                with open(tmp_name, "rb") as f:
+                    buffer = io.BytesIO(f.read())
+                    buffer.seek(0)
+                    imageobj = discord.File(buffer, filename="video.mp4")
+
+                os.remove(tmp_name)
+                return None, imageobj
+
+            except Exception:
+                return None, None
+
+        return None, None
+
     async def get_bsky_embed(self, url, message, force_ignore_embeds):
         bsky_link = self.bsky_pattern.search(url)
         if not bsky_link:
@@ -247,63 +316,33 @@ class ImageEmbed:
 
         embed_data = post.get("embed")
 
-        if embed_data and embed_data.get("$type") == "app.bsky.embed.recordWithMedia#view":
-            embed_data = embed_data.get("media")
-
-        imageobj = None
         image_url = None
+        imageobj = None
 
-        if embed_data and embed_data.get("$type") == "app.bsky.embed.images#view":
-            images = embed_data.get("images", [])
-            if not images:
-                return None
+        if embed_data and embed_data.get("$type") == "app.bsky.embed.recordWithMedia#view":
+            # Directly attached media takes priority
+            image_url, imageobj = await self._extract_bsky_media(embed_data.get("media"))
 
-            image_url = images[0].get("fullsize")
-            if not image_url:
-                return None
+            # Fall back to the quoted post's own embeds if no media found
+            if not image_url and not imageobj:
+                quoted_record = embed_data.get("record", {}).get("record", {})
+                if quoted_record.get("$type") == "app.bsky.embed.record#viewRecord":
+                    quoted_embeds = quoted_record.get("embeds", [])
+                    if quoted_embeds:
+                        image_url, imageobj = await self._extract_bsky_media(quoted_embeds[0])
 
-        elif embed_data and embed_data.get("$type") == "app.bsky.embed.video#view":
-            playlist = embed_data.get("playlist")
-
-            if not playlist:
-                return None
-
-            try:
-                tmp_fd, tmp_name = tempfile.mkstemp(suffix=".mp4")
-                os.close(tmp_fd)
-
-                proc = await asyncio.create_subprocess_exec(
-                    "ffmpeg",
-                    "-y",
-                    "-loglevel", "error",
-                    "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
-                    "-i", playlist,
-                    "-c:v", "copy",
-                    "-c:a", "copy",
-                    "-bsf:a", "aac_adtstoasc",
-                    tmp_name,
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-
-                _, stderr = await proc.communicate()
-
-                if proc.returncode != 0 or not os.path.exists(tmp_name) or os.path.getsize(tmp_name) == 0:
-                    os.remove(tmp_name)
-                    return None
-
-                with open(tmp_name, "rb") as f:
-                    buffer = io.BytesIO(f.read())
-                    buffer.seek(0)
-
-                    imageobj = discord.File(buffer, filename="video.mp4")
-
-                os.remove(tmp_name)
-
-            except Exception:
-                return None
+        elif embed_data and embed_data.get("$type") == "app.bsky.embed.record#view":
+            # Pure quote post - pull image from the quoted post's embeds
+            quoted_record = embed_data.get("record", {})
+            if quoted_record.get("$type") == "app.bsky.embed.record#viewRecord":
+                quoted_embeds = quoted_record.get("embeds", [])
+                if quoted_embeds:
+                    image_url, imageobj = await self._extract_bsky_media(quoted_embeds[0])
 
         else:
+            image_url, imageobj = await self._extract_bsky_media(embed_data)
+
+        if not image_url and not imageobj:
             return None
 
         embed = discord.Embed(
