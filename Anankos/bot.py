@@ -95,6 +95,7 @@ class Anankos(commands.Bot):
         asyncio.create_task(self.automod.on_message(message))
         asyncio.create_task(self.art_deduper.on_message(message))
         asyncio.create_task(self.poll_manager.on_message(message))
+        asyncio.create_task(self.suspicious_filter.on_message(message))
 
     async def on_message_edit(self, before, after):
         await self.bad_words.on_message_edit(before, after)

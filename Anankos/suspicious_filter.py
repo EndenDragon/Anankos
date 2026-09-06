@@ -1,5 +1,9 @@
 import datetime
+import re
 
+
+_MENTION_RE = re.compile(r'^<@!?(\d+)>$')
+_MIN_ID_DIGITS = 15  # shorter digit strings are treated as usernames, not snowflakes
 
 _KICK_DM = (
     "**You have been kicked from the Corrin Conclave Discord Server because your account appears suspicious.**\n"
@@ -9,6 +13,7 @@ _KICK_DM = (
 
 _TRACK_WINDOW = 300  # seconds to keep newly-joined members in the reaction tracking window
 _REACTION_SECS = 60  # react within this many seconds of joining → suspicious (+25 pts)
+_MAX_IGNORE_DAYS = 4  # longest a username may be exempted from the filter
 
 
 class SuspiciousFilter:
@@ -18,6 +23,60 @@ class SuspiciousFilter:
         self.welcome_channelids = set(welcome_channelids)
         self.kick_score = kick_score
         self._recently_joined = {}  # user_id -> join datetime
+        self._ignored = {}  # key (lowercased username, or digit-string user ID) -> expiry datetime (in-memory only)
+
+    def _prune_ignored(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        for key in [k for k, exp in self._ignored.items() if exp <= now]:
+            del self._ignored[key]
+
+    def _normalize_identifier(self, identifier):
+        """Returns (key, is_id). A mention (<@id>) or a long digit string is treated as a
+        user ID; anything else is treated as a username (case-insensitive)."""
+        ident = identifier.strip()
+        mention = _MENTION_RE.match(ident)
+        if mention:
+            return mention.group(1), True
+        ident = ident.lstrip("@")
+        if ident.isdigit() and len(ident) >= _MIN_ID_DIGITS:
+            return ident, True
+        return ident.lower(), False
+
+    def add_ignore(self, identifier, days=_MAX_IGNORE_DAYS):
+        """Exempts a username or user ID from the filter. Returns (key, expiry, is_id) or None if invalid."""
+        key, is_id = self._normalize_identifier(identifier)
+        if not key:
+            return None
+        days = min(max(days, 0), _MAX_IGNORE_DAYS)
+        if days <= 0:
+            return None
+        expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days)
+        self._ignored[key] = expiry
+        return key, expiry, is_id
+
+    def remove_ignore(self, identifier):
+        """Returns (key, is_id) for the cleared entry, or None if it was not on the list."""
+        self._prune_ignored()
+        key, is_id = self._normalize_identifier(identifier)
+        if key not in self._ignored:
+            return None
+        del self._ignored[key]
+        return key, is_id
+
+    def list_ignored(self):
+        """Returns [(key, expiry, is_id)] sorted by soonest expiry."""
+        self._prune_ignored()
+        return sorted(
+            ((key, expiry, key.isdigit() and len(key) >= _MIN_ID_DIGITS) for key, expiry in self._ignored.items()),
+            key=lambda item: item[1],
+        )
+
+    def is_ignored(self, member):
+        self._prune_ignored()
+        if str(member.id) in self._ignored:
+            return True
+        names = [getattr(member, "name", None), getattr(member, "global_name", None)]
+        return any(n and n.lower() in self._ignored for n in names)
 
     def _score(self, member):
         """Returns (total_score, breakdown_list) where each breakdown entry is (label, points)."""
@@ -69,7 +128,7 @@ class SuspiciousFilter:
 
     async def on_member_join(self, member):
         """Returns True if the member was kicked so the caller can skip further processing."""
-        if member.bot:
+        if member.bot or self.is_ignored(member):
             return False
         score, breakdown = self._score(member)
         if score >= self.kick_score:
@@ -78,6 +137,105 @@ class SuspiciousFilter:
         join_time = member.joined_at or datetime.datetime.now(datetime.timezone.utc)
         self._recently_joined[member.id] = join_time
         return False
+
+    async def on_message(self, message):
+        if message.author.id == self.client.user.id or len(message.content) == 0:
+            return
+        prefix = self.client.cmd_prefix
+        content = message.content.strip()
+        if content.startswith(prefix + "susignore"):
+            await self.cmd_susignore(message, content[len(prefix) + len("susignore"):])
+        elif content.startswith(prefix + "susunignore"):
+            await self.cmd_susunignore(message, content[len(prefix) + len("susunignore"):])
+        elif content.startswith(prefix + "suslistignore"):
+            await self.cmd_suslistignore(message)
+
+    def _can_manage(self, message):
+        """Ignore commands require the Manage Server permission."""
+        return message.channel.permissions_for(message.author).manage_guild
+
+    def _display(self, key, is_id):
+        """Never renders an actual @mention — an ignored ID may belong to someone in the
+        server we don't want to ping just by listing them."""
+        return "user ID `{}`".format(key) if is_id else "**{}**".format(key)
+
+    async def cmd_susignore(self, message, args):
+        if not self._can_manage(message):
+            return
+        parts = args.split()
+        if not parts:
+            await message.channel.send(
+                "{} Usage: `{}susignore <username or user ID> [days, max {}]`".format(
+                    message.author.mention, self.client.cmd_prefix, _MAX_IGNORE_DAYS
+                )
+            )
+            return
+        days = _MAX_IGNORE_DAYS
+        if len(parts) > 1:
+            try:
+                days = float(parts[-1])
+                parts = parts[:-1]
+            except ValueError:
+                pass
+        identifier = " ".join(parts)
+        result = self.add_ignore(identifier, days)
+        if not result:
+            await message.channel.send(
+                "{} Invalid username, user ID, or duration.".format(message.author.mention)
+            )
+            return
+        key, expiry, is_id = result
+        await message.channel.send(
+            "{} {} will be ignored by the suspicious filter until <t:{}:f> (<t:{}:R>).".format(
+                message.author.mention, self._display(key, is_id), int(expiry.timestamp()), int(expiry.timestamp())
+            )
+        )
+
+    async def cmd_susunignore(self, message, args):
+        if not self._can_manage(message):
+            return
+        identifier = args.strip()
+        if not identifier:
+            await message.channel.send(
+                "{} Usage: `{}susunignore <username or user ID>`".format(message.author.mention, self.client.cmd_prefix)
+            )
+            return
+        result = self.remove_ignore(identifier)
+        if not result:
+            key, is_id = self._normalize_identifier(identifier)
+            await message.channel.send(
+                "{} {} is not on the suspicious filter ignore list.".format(
+                    message.author.mention, self._display(key, is_id)
+                )
+            )
+            return
+        key, is_id = result
+        await message.channel.send(
+            "{} {} is no longer ignored by the suspicious filter.".format(
+                message.author.mention, self._display(key, is_id)
+            )
+        )
+
+    async def cmd_suslistignore(self, message):
+        if not self._can_manage(message):
+            return
+        entries = self.list_ignored()
+        if not entries:
+            await message.channel.send(
+                "{} No usernames or user IDs are currently ignored by the suspicious filter.".format(
+                    message.author.mention
+                )
+            )
+            return
+        lines = [
+            "{} — expires <t:{}:R>".format(self._display(key, is_id), int(expiry.timestamp()))
+            for key, expiry, is_id in entries
+        ]
+        await message.channel.send(
+            "{} **Suspicious filter ignore list ({}):**\n{}".format(
+                message.author.mention, len(entries), "\n".join(lines)
+            )
+        )
 
     async def on_raw_reaction_add(self, payload):
         if not self.welcome_channelids or payload.channel_id not in self.welcome_channelids:
@@ -105,7 +263,7 @@ class SuspiciousFilter:
         if not guild:
             return
         member = guild.get_member(user_id)
-        if not member or member.bot:
+        if not member or member.bot or self.is_ignored(member):
             return
 
         score, breakdown = self._score(member)
