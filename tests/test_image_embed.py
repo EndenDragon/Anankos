@@ -1,5 +1,6 @@
+import asyncio
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -120,6 +121,69 @@ class TestBskyPattern(unittest.TestCase):
     def test_does_not_match_non_bsky(self):
         m = self.ie.bsky_pattern.search("https://mastodon.social/@user")
         self.assertIsNone(m)
+
+
+class TestGetTwitterEmbed(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.ie = make_image_embed()
+        self.url = "https://twitter.com/user/status/123456789"
+        self.message = MagicMock()
+        self.message.embeds = []
+
+    async def test_both_sources_fail_returns_none_without_hanging(self):
+        self.ie.fetch_fxtwitter = AsyncMock(return_value=None)
+        self.ie.fetch_vxtwitter = AsyncMock(return_value=None)
+
+        result = await asyncio.wait_for(
+            self.ie.get_twitter_embed(self.url, self.message, False),
+            timeout=2,
+        )
+
+        self.assertIsNone(result)
+
+    async def test_one_source_missing_media_other_returns_none(self):
+        self.ie.fetch_fxtwitter = AsyncMock(return_value={"mediaDetails": []})
+        self.ie.fetch_vxtwitter = AsyncMock(return_value=None)
+
+        result = await asyncio.wait_for(
+            self.ie.get_twitter_embed(self.url, self.message, False),
+            timeout=2,
+        )
+
+        self.assertIsNone(result)
+
+    async def test_faster_source_wins_and_slower_one_is_cancelled(self):
+        slow_cancelled = asyncio.Event()
+
+        async def slow_fetch(tweet_id):
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                slow_cancelled.set()
+                raise
+            return None
+
+        async def fast_fetch(tweet_id):
+            return {
+                "user": {"name": "Name", "screen_name": "handle", "profile_image_url_https": "https://example.com/a.png"},
+                "text": "hello",
+                "favorite_count": 1,
+                "mediaDetails": [{"media_url_https": "https://pbs.twimg.com/media/img.jpg"}],
+            }
+
+        self.ie.fetch_fxtwitter = slow_fetch
+        self.ie.fetch_vxtwitter = fast_fetch
+        self.ie.fetch_image_fileobject = AsyncMock(return_value=MagicMock(filename="img.jpg"))
+
+        result = await asyncio.wait_for(
+            self.ie.get_twitter_embed(self.url, self.message, False),
+            timeout=2,
+        )
+
+        self.assertIsNotNone(result)
+        embed, imageobj = result
+        self.assertEqual(imageobj.filename, "img.jpg")
+        self.assertTrue(slow_cancelled.is_set())
 
 
 if __name__ == "__main__":

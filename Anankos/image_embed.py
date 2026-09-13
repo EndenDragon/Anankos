@@ -42,7 +42,7 @@ class ImageEmbed:
         self.bsky_url = "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2F{}%2Fapp.bsky.feed.post%2F{}"
 
     def start_sessions(self):
-        self.httpsession = aiohttp.ClientSession()
+        self.httpsession = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
 
     async def close(self):
         if self.httpsession and not self.httpsession.closed:
@@ -158,24 +158,64 @@ class ImageEmbed:
     def filter_link(self, url, message_content):
         return message_content.count("<" + url + ">") < message_content.count(url)
 
+    async def _fetch_twitter_source(self, fetch_fn, tweet_id):
+        """Fetch tweet metadata via fetch_fn, then download its media.
+        Returns (tweet_status, imageobj) on full success, or None on any
+        failure (bad/missing media, download error, exception). Never
+        raises, so it's safe to race against another source with asyncio.wait.
+        """
+        try:
+            tweet_status = await fetch_fn(tweet_id)
+        except Exception:
+            return None
+        if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
+            return None
+        media_url = self.set_query_param(tweet_status["mediaDetails"][0]["media_url_https"], "name", "large", keep_others=True)
+        try:
+            imageobj = await self.fetch_image_fileobject(media_url, "https://twitter.com/")
+        except Exception:
+            return None
+        if imageobj is None:
+            return None
+        return tweet_status, imageobj
+
     async def get_twitter_embed(self, url, message, force_ignore_embeds):
         url = url.replace("mobile.twitter.com", "twitter.com").replace("fxtwitter.com", "twitter.com").replace("vxtwitter.com", "twitter.com").replace("/x.com", "/twitter.com")
         twitter_id = self.twitter_pattern.search(url)
         if not twitter_id:
             return None
         twitter_id = int(twitter_id.group(1))
-        tweet_status = await self.fetch_fxtwitter(twitter_id)
-        if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
-            tweet_status = await self.fetch_vxtwitter(twitter_id)
-            if not tweet_status or not tweet_status.get("mediaDetails", None) or len(tweet_status["mediaDetails"]) == 0:
-                return None
+
+        # Race fxtwitter and vxtwitter (metadata + media download) concurrently
+        # and take whichever fully succeeds first, since either source's media
+        # URL can independently fail/hang even when its metadata call succeeds.
+        pending = {
+            asyncio.create_task(self._fetch_twitter_source(self.fetch_fxtwitter, twitter_id)),
+            asyncio.create_task(self._fetch_twitter_source(self.fetch_vxtwitter, twitter_id)),
+        }
+        winner = None
+        try:
+            while pending and winner is None:
+                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                for task in done:
+                    result = task.result()
+                    if result is not None and winner is None:
+                        winner = result
+        finally:
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+
+        if winner is None:
+            return None
+        tweet_status, imageobj = winner
+
         if message not in self.forced_embeds and not force_ignore_embeds:
             for embed in message.embeds:
                 if embed.footer and embed.footer.text == "Twitter":
                     if url == embed.url:
                         return None
-        media_url = self.set_query_param(tweet_status["mediaDetails"][0]["media_url_https"], "name", "large", keep_others=True)
-        imageobj = await self.fetch_image_fileobject(media_url, "https://twitter.com/")
         embed = discord.Embed(
             description = tweet_status["text"],
             color = 1942002,
